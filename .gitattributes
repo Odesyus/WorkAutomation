@@ -1,0 +1,4 @@
+# Git ve GitHub ZIP indirmelerinde Windows dosyalarinin satir sonlarini (CRLF) zorla koru
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

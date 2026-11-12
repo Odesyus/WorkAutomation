@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 title Telekom Otomasyon - Otomatik Kurulum ve Kurucu
 color 0B
 

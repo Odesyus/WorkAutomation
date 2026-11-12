@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 title Telekom Otomasyon - Guncelleme
 cd /d "%~dp0"
 
