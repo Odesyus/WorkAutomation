@@ -22,7 +22,7 @@ if errorlevel 1 (
 :: 2. Sanal Ortam (venv) kontrolü ve oluşturma
 if not exist "venv\Scripts\activate.bat" (
     echo [*] Ilk calistirma tespit edildi.
-    echo [*] Sanal ortam (venv) olusturuluyor, lutfen bekleyin...
+    echo [*] Sanal ortam olusturuluyor, lutfen bekleyin...
     python -m venv venv
     if errorlevel 1 (
         echo [HATA] Sanal ortam olusturulamadi!
@@ -32,7 +32,7 @@ if not exist "venv\Scripts\activate.bat" (
     echo [+] Sanal ortam olusturuldu.
     
     call venv\Scripts\activate.bat
-    echo [*] Gerekli kutuphaneler yukleniyor (bu islem ilk seferde 1-2 dakika surebilir)...
+    echo [*] Gerekli kutuphaneler yukleniyor, bu islem ilk seferde 1-2 dakika surebilir...
     python -m pip install --upgrade pip --quiet
     python -m pip install -r requirements.txt --quiet
     echo [*] Playwright Chromium tarayicisi kuruluyor...
