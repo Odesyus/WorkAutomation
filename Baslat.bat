@@ -22,11 +22,12 @@ if exist "venv\Scripts\activate.bat" goto :venv_ok
 echo [*] Ilk calistirma tespit edildi.
 echo [*] Sanal ortam olusturuluyor, lutfen bekleyin...
 python -m venv venv
-if errorlevel 1 (
-    echo [HATA] Sanal ortam olusturulamadi!
-    pause
-    exit /b 1
-)
+if not errorlevel 1 goto :venv_created
+echo [HATA] Sanal ortam olusturulamadi!
+pause
+exit /b 1
+
+:venv_created
 echo [+] Sanal ortam olusturuldu.
 
 call venv\Scripts\activate.bat
@@ -42,9 +43,7 @@ goto :run_app
 call venv\Scripts\activate.bat
 
 :run_app
-if not exist "local_config.json" (
-    if exist "local_config.example.json" copy "local_config.example.json" "local_config.json" >nul
-)
+if not exist "local_config.json" if exist "local_config.example.json" copy "local_config.example.json" "local_config.json" >nul
 
 echo.
 echo ===================================================
