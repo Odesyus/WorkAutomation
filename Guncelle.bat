@@ -7,6 +7,26 @@ echo       TELEKOM OTOMASYON PLATFORMU GUNCELLEYICI
 echo ===================================================
 echo.
 
+git --version >nul 2>&1
+if errorlevel 1 (
+    echo [HATA] Bilgisayarinizda Git bulunamadi.
+    echo Lutfen https://git-scm.com adresinden Git kurun.
+    pause
+    exit /b 1
+)
+
+if not exist ".git" (
+    echo [*] Proje klasorunde Git baglantisi bulunamadi (ZIP olarak indirilmis).
+    echo [*] GitHub deposuna otomatik baglanti kuruluyor, lutfen bekleyin...
+    git init
+    git remote add origin https://github.com/Odesyus/WorkAutomation.git
+    git fetch origin main
+    git checkout -B main origin/main
+    git branch --set-upstream-to=origin/main main
+    echo [+] GitHub baglantisi basariyla kuruldu!
+    echo.
+)
+
 echo [*] GitHub uzerinden en son kodlar cekiliyor...
 git pull origin main
 if errorlevel 1 (

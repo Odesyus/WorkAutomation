@@ -38,8 +38,32 @@ def _run_git_command(args, timeout=25):
         return {'success': False, 'stdout': '', 'stderr': str(e), 'returncode': -1}
 
 
+def _ensure_git_repo():
+    """
+    Eğer klasör ZIP olarak indirilmişse veya .git klasörü yoksa,
+    otomatik olarak bu klasörü GitHub reposuna bağlar.
+    """
+    dot_git = os.path.join(ROOT_DIR, ".git")
+    if os.path.isdir(dot_git):
+        return True
+
+    repo_url = "https://github.com/Odesyus/WorkAutomation.git"
+    try:
+        _run_git_command(["init"])
+        _run_git_command(["remote", "add", "origin", repo_url])
+        fetch = _run_git_command(["fetch", "origin", "main"], timeout=30)
+        if fetch['success']:
+            _run_git_command(["checkout", "-B", "main", "origin/main"])
+            _run_git_command(["branch", "--set-upstream-to=origin/main", "main"])
+            return True
+    except Exception as e:
+        print(f"[GIT REPO AUTO-INIT ERROR] {e}")
+    return False
+
+
 def get_current_version_info():
     """Mevcut commit ve sürüm özetini döndürür."""
+    _ensure_git_repo()
     res = _run_git_command(["log", "-1", "--format=%h - %s (%cd)", "--date=short"], timeout=5)
     if res['success'] and res['stdout']:
         return res['stdout']
@@ -50,6 +74,9 @@ def check_for_updates():
     """
     GitHub 'origin main' dalından yeni commit olup olmadığını denetler.
     """
+    # 0. .git klasörü yoksa (ZIP'ten açılmışsa) otomatik bağla
+    _ensure_git_repo()
+
     # 1. Uzak sunucudan en son referansları çek
     fetch_res = _run_git_command(["fetch", "origin", "main"], timeout=20)
     if not fetch_res['success']:
@@ -115,6 +142,9 @@ def apply_update():
     gerekli python paketlerini (requirements.txt) ve Playwright tarayıcısını kurar.
     """
     logs = []
+
+    # 0. Git repo bağlantısını garantiye al
+    _ensure_git_repo()
 
     # 1. Git Pull
     pull_res = _run_git_command(["pull", "origin", "main"], timeout=30)
