@@ -1,0 +1,79 @@
+/* =========================================================
+   corporate.css — Kurumsal tema (beyaz, Türk Telekom mavisi, sade)
+   ========================================================= */
+body.theme-corporate {
+    --bg: #f5f7fa;
+    --bg-sidebar: #ffffff;
+    --topbar-bg: rgba(255, 255, 255, .95);
+    --surface: #ffffff;
+    --surface-hover: #f3f4f6;
+    --surface-border: #e5e7eb;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+
+    --primary: #0066cc;
+    --primary-soft: #e6f0fa;
+    --purple: #5b21b6;
+    --purple-soft: #ede9fe;
+    --success: #059669;
+    --success-soft: #ecfdf5;
+    --danger: #dc2626;
+    --danger-soft: #fef2f2;
+    --warning: #d97706;
+    --warning-soft: #fffbeb;
+
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .04);
+
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+    --focus-ring: 0 0 0 3px rgba(0, 102, 204, .15);
+
+    --btn-primary-bg: #0066cc;
+    --btn-primary-hover: #004c99;
+    --btn-primary-shadow: none;
+
+    --nav-active-bg: #e6f0fa;
+    --table-head: #f9fafb;
+    --row-stripe: #fcfcfd;
+    --row-hover: #f3f4f6;
+    --progress-bg: #0066cc;
+
+    --log-bg: #1e293b;
+    --log-header-bg: #0f172a;
+    --log-text: #e2e8f0;
+    --log-muted: #94a3b8;
+
+    --welcome-bg: linear-gradient(90deg, #0066cc, #004c99);
+    --card-hover-transform: translateY(-2px);
+    --card-hover-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+    --toast-bg: #ffffff;
+    --scrollbar: #cbd5e1;
+}
+
+/* Kurumsal üst şerit */
+.theme-corporate .sidebar-header {
+    background: #0066cc;
+    color: #ffffff;
+    border-bottom-color: #004c99;
+}
+.theme-corporate .sidebar-header i { color: #ffffff; }
+
+.theme-corporate .top-bar { box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+
+/* Hoşgeldin bandı mavi zemin üzerinde beyaz yazı */
+.theme-corporate .welcome-card { border: none; color: #ffffff; }
+.theme-corporate .welcome-text p { color: rgba(255, 255, 255, .85); }
+.theme-corporate .welcome-icon i { color: #ffffff; opacity: .5; }
+
+.theme-corporate .card-header { background: #fafbfc; border-radius: var(--radius) var(--radius) 0 0; }
+
+.theme-corporate .data-table th { color: #374151; }
+
+.theme-corporate .btn-secondary { background: #ffffff; }
+
+.theme-corporate .nav-links li.active a { font-weight: 600; }
+
+.theme-corporate .theme-btn { background: #f9fafb; }
+

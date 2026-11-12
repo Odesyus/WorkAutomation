@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+modules/__pycache__/
+
+# Bireysel / Yerel Kullanıcı Yapılandırmaları (Ortak Olmayanlar)
+local_config.json
+users.json
+iccid_cache.json
+cleaning_queue.json
+
+# İndirilen ve Üretilen Loglar
+downloaded_logs/
+*.log
+
+# Tarayıcı Oturumları ve Önbellek
+es_browser_profile/
+
+# Ekran Görüntüleri (Hata ve canlı yakalamalar)
+static/screenshots/
+*.png
+*.jpg
+*.jpeg
+!static/img/*.png
+!static/img/*.jpg
+!static/img/*.svg
+
+# Ortam ve Sanal Ortamlar
+.env
+.venv/
+venv/
+ENV/
+.idea/
+.vscode/
+
+# Harici Sürücüler ve İkili Dosyalar (Kurulumla temin edilir)
+instantclient_19_25/
+instantclient*/
+*.dll
+*.sym
+*.jar

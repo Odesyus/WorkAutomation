@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}TestPortal User - Otomasyon{% endblock %}
+{% block page_title %}TestPortal User Yönetimi{% endblock %}
+
+{% block content %}
+<div class="page-grid">
+    <!-- Kayıtlı Kullanıcılar ve Çoklu Seçim Kartı -->
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-users"></i> Kayıtlı TestPortal Kullanıcıları</h3>
+            <a href="/iccid" class="btn btn-secondary btn-sm">
+                <i class="fas fa-sim-card"></i> ICCID Kontrol'e Git
+            </a>
+        </div>
+        <div class="card-body">
+            <!-- Çoklu Seçimli Dropdown -->
+            <div class="form-group">
+                <label><i class="fas fa-check-square"></i> ICCID Çekilecek Kullanıcıları Seçin (Çoklu Seçim)</label>
+                <div class="input-with-action">
+                    <div class="multi-select" id="user-multi-select" style="flex: 1;">
+                        <button type="button" class="multi-select-btn" onclick="toggleMultiSelect(event)">
+                            <span id="multi-select-label">Kullanıcı seçiniz...</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="multi-select-menu" id="multi-select-menu" onclick="event.stopPropagation()">
+                            <div class="multi-select-actions">
+                                <a onclick="selectAllUsers(true)">Tümünü Seç</a>
+                                <a onclick="selectAllUsers(false)">Temizle</a>
+                            </div>
+                            <div id="multi-select-options">
+                                {% for u in tp_users %}
+                                <label class="multi-select-item">
+                                    <input type="checkbox" class="tp-user-cb" value="{{ u.id }}" data-name="{{ u.name }}" onchange="onMultiUserChange()">
+                                    <span><strong>{{ u.name }}</strong> <span class="text-muted">({{ u.user }})</span></span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm text-danger" id="btn-remove-selected" onclick="removeSelectedUsers()">
+                        <i class="fas fa-user-minus"></i> Seçilenleri Çıkar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Kayıtlı Kullanıcı Tablosu -->
+            <div class="table-responsive" style="margin-top: 18px;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th width="50">#</th>
+                            <th>Kullanıcı Adı</th>
+                            <th>Domain ID</th>
+                            <th width="120">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody">
+                        {% for u in tp_users %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ u.name }}</strong></td>
+                            <td><code>{{ u.user }}</code></td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm text-danger" onclick="deleteSingleUser({{ u.id }}, '{{ u.name }}')">
+                                    <i class="fas fa-trash-alt"></i> Çıkar
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Yeni Kullanıcı Ekle Kartı -->
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-user-plus"></i> Kullanıcı Ekle</h3>
+        </div>
+        <div class="card-body">
+            <form id="add-user-form" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="new-user-domain"><i class="fas fa-id-badge"></i> Domain ID (Sicil No)</label>
+                    <input type="text" id="new-user-domain" placeholder="Domain ID / Sicil No giriniz" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-user-pass"><i class="fas fa-lock"></i> Sicil / Domain ID Şifre</label>
+                    <input type="password" id="new-user-pass" placeholder="Şifrenizi giriniz" style="width:100%; padding:10px 14px; background:var(--input-bg); border:1px solid var(--input-border); border-radius:var(--radius-sm); color:var(--text);" required>
+                </div>
+                <small class="text-muted" style="display: block; margin-bottom: 14px; font-size: 0.82rem;">
+                    <i class="fas fa-magic" style="color: var(--primary);"></i> Kullanıcının <strong>Adı ve Soyadı</strong> TestPortal üzerinden otomatik olarak çekilecektir.
+                </small>
+                <button type="button" class="btn btn-primary" id="btn-add-user" onclick="addNewUser()" style="width: 100%;">
+                    <i class="fas fa-plus-circle"></i> Kullanıcı Ekle
+                </button>
+            </form>
+            <div class="info-item" style="margin-top: 16px;">
+                <i class="fas fa-info-circle text-success"></i>
+                <span>Hatların <strong>Sanal</strong> veya <strong>Fiziksel</strong> olduğu önceden belirlenmez; TestPortal'dan çekilirken hangi ağaçta olduğuna göre otomatik algılanır.</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getSavedUserIds() {
+        try {
+            const raw = localStorage.getItem('selected_tp_users');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed.map(String);
+            }
+        } catch (e) {}
+        return null; // null = varsayılan olarak tümü seçili
+    }
+
+    function saveSelectedUserIds(ids) {
+        localStorage.setItem('selected_tp_users', JSON.stringify(ids.map(String)));
+    }
+
+    function toggleMultiSelect(e) {
+        e.stopPropagation();
+        document.getElementById('user-multi-select').classList.toggle('open');
+    }
+
+    document.addEventListener('click', () => {
+        document.getElementById('user-multi-select')?.classList.remove('open');
+    });
+
+    function updateMultiSelectLabel() {
+        const cbs = [...document.querySelectorAll('.tp-user-cb')];
+        const checked = cbs.filter(cb => cb.checked);
+        const label = document.getElementById('multi-select-label');
+        if (checked.length === 0) {
+            label.textContent = 'Hiçbiri seçilmedi';
+        } else if (checked.length === cbs.length) {
+            label.textContent = `Tümü Seçili (${checked.map(c => c.dataset.name).join(', ')})`;
+        } else {
+            label.textContent = checked.map(c => c.dataset.name).join(', ');
+        }
+    }
+
+    function onMultiUserChange() {
+        const checkedIds = [...document.querySelectorAll('.tp-user-cb:checked')].map(cb => cb.value);
+        saveSelectedUserIds(checkedIds);
+        updateMultiSelectLabel();
+    }
+
+    function selectAllUsers(state) {
+        document.querySelectorAll('.tp-user-cb').forEach(cb => { cb.checked = state; });
+        onMultiUserChange();
+    }
+
+    function renderUsersUI(users) {
+        const saved = getSavedUserIds();
+        const optsBox = document.getElementById('multi-select-options');
+        optsBox.innerHTML = '';
+        users.forEach(u => {
+            const isChecked = saved === null ? true : saved.includes(String(u.id));
+            const lbl = document.createElement('label');
+            lbl.className = 'multi-select-item';
+            lbl.innerHTML = `
+                <input type="checkbox" class="tp-user-cb" value="${u.id}" data-name="${escapeHtml(u.name)}" ${isChecked ? 'checked' : ''} onchange="onMultiUserChange()">
+                <span><strong>${escapeHtml(u.name)}</strong> <span class="text-muted">(${escapeHtml(u.user)})</span></span>
+            `;
+            optsBox.appendChild(lbl);
+        });
+        updateMultiSelectLabel();
+
+        const tbody = document.getElementById('users-tbody');
+        tbody.innerHTML = '';
+        users.forEach((u, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${idx + 1}</td>
+                <td><strong>${escapeHtml(u.name)}</strong></td>
+                <td><code>${escapeHtml(u.user)}</code></td>
+                <td>
+                    <button class="btn btn-secondary btn-sm text-danger" onclick="deleteSingleUser(${u.id}, '${escapeHtml(u.name)}')">
+                        <i class="fas fa-trash-alt"></i> Çıkar
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function addNewUser() {
+        const user = document.getElementById('new-user-domain').value.trim();
+        const password = document.getElementById('new-user-pass').value.trim();
+
+        if (!user || !password) {
+            return showToast('Lütfen Domain ID (Sicil No) ve Şifre alanlarını doldurun.', 'error');
+        }
+
+        const btn = document.getElementById('btn-add-user');
+        setLoading(btn, true, 'TestPortal Doğrulanıyor...');
+        const res = await apiCall('/api/users', 'POST', { user, password });
+        setLoading(btn, false);
+
+        if (res.success) {
+            // Yeni eklenen kullanıcıyı da otomatik seçili listeye dahil et
+            const newIds = res.data.map(u => String(u.id));
+            saveSelectedUserIds(newIds);
+            renderUsersUI(res.data);
+            document.getElementById('new-user-domain').value = '';
+            document.getElementById('new-user-pass').value = '';
+            showToast(res.message || 'Kullanıcı eklendi.', 'success');
+        } else {
+            showToast(res.error || 'Kullanıcı eklenemedi.', 'error');
+        }
+    }
+
+    async function deleteSingleUser(id, name) {
+        const res = await apiCall('/api/users/' + id, 'DELETE');
+        if (res.success) {
+            renderUsersUI(res.data);
+            onMultiUserChange();
+            showToast(name + ' çıkarıldı.', 'success');
+        } else {
+            showToast(res.error || 'Kullanıcı silinemedi.', 'error');
+        }
+    }
+
+    async function removeSelectedUsers() {
+        const checked = [...document.querySelectorAll('.tp-user-cb:checked')];
+        if (!checked.length) {
+            return showToast('Çıkarmak için önce listeden en az bir kullanıcı işaretlemelisiniz.', 'warning');
+        }
+        const btn = document.getElementById('btn-remove-selected');
+        setLoading(btn, true, 'Siliniyor...');
+        let latestUsers = null;
+        for (const cb of checked) {
+            const res = await apiCall('/api/users/' + cb.value, 'DELETE');
+            if (res.success) latestUsers = res.data;
+        }
+        setLoading(btn, false);
+        if (latestUsers) {
+            renderUsersUI(latestUsers);
+            onMultiUserChange();
+            showToast('Seçili kullanıcılar çıkarıldı.', 'success');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const saved = getSavedUserIds();
+        const cbs = [...document.querySelectorAll('.tp-user-cb')];
+        cbs.forEach(cb => {
+            cb.checked = saved === null ? true : saved.includes(cb.value);
+        });
+        updateMultiSelectLabel();
+    });
+</script>
+{% endblock %}
+

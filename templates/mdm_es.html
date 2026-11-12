@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}MDM/ES Kayıt - Otomasyon{% endblock %}
+{% block page_title %}MDM/ES Cihaz Kayıt{% endblock %}
+
+{% block content %}
+<div class="page-grid">
+    <div class="card form-card">
+        <div class="card-header">
+            <h3><i class="fas fa-mobile-alt"></i> Cihaz Ekleme (#/deviceAdd)</h3>
+        </div>
+        <div class="card-body">
+            <form onsubmit="return false;">
+                <div class="form-group">
+                    <label for="quick-line"><i class="fas fa-list-ul"></i> Kayıtlı Hattan Hızlı Seç (İsteğe Bağlı)</label>
+                    <select id="quick-line" onchange="onQuickLineSelect(this.value)">
+                        <option value="">-- Listeden hat seçin veya aşağıya manuel girin --</option>
+                        {% for item in lines %}
+                        <option value="{{ item.msisdn }}|{{ item.imsi }}">{{ item.owner }} — {{ item.msisdn }} ({{ item.type }}) [IMSI: {{ item.imsi }}]</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="msisdn"><i class="fas fa-phone"></i> MSISDN <small class="text-muted">(Subscriber Id)</small></label>
+                    <input type="text" id="msisdn" placeholder="5XXXXXXXXX (10 hane)" maxlength="10">
+                </div>
+
+                <div class="form-group">
+                    <label for="imsi"><i class="fas fa-sim-card"></i> IMSI <small class="text-muted">(Network Id)</small></label>
+                    <div class="input-with-action">
+                        <input type="text" id="imsi" placeholder="15 haneli IMSI" maxlength="15">
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-fetch-imsi" onclick="fetchIMSI()">
+                            <i class="fas fa-database"></i> BSCS'ten Çek
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="imei"><i class="fas fa-barcode"></i> IMEI <small class="text-muted">(Device Id)</small></label>
+                    <input type="text" id="imei" placeholder="15 haneli IMEI" maxlength="15">
+                </div>
+
+                <div class="form-group" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;">
+                    <div style="font-size: 0.85rem; color: #93c5fd; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-magic"></i>
+                        <span><strong>Otomatik Model Tespiti:</strong> Manufacturer ve Model alanları IMEI girildiğinde sistem tarafından otomatik olarak çekilir.</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="target-system"><i class="fas fa-server"></i> Hedef Sistem</label>
+                    <select id="target-system">
+                        <option value="both" selected>MDM + ES (İkisine Birden Kaydet)</option>
+                        <option value="mdm">Sadece MDM (test-cdp.turktelekom.com.tr)</option>
+                        <option value="es">Sadece ES (10.132.1.11:8080)</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary btn-lg" id="btn-register" onclick="registerDevice()">
+                        <i class="fas fa-save"></i> Cihazı Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card info-card">
+        <div class="card-header">
+            <h3><i class="fas fa-info-circle"></i> Sistem & Alan Eşleşmeleri</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-item">
+                <i class="fas fa-check-circle text-success"></i>
+                <span><strong>MDM:</strong> <code>https://test-cdp.turktelekom.com.tr/ui/home.html#/deviceAdd</code> (Arka planda tam otomatik giriş)</span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-shield-alt text-primary"></i>
+                <span><strong>ES:</strong> <code>http://10.132.1.11:8080/ui/#/deviceAdd</code> (Kalıcı oturum: ilk girişte şifre otomatik yazılır, reCAPTCHA işaretlendiğinde otomatik devam eder)</span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-exchange-alt text-success"></i>
+                <span><strong>Device Id:</strong> IMEI &nbsp;|&nbsp; <strong>Subscriber Id:</strong> MSISDN (MDM: 5XXXXXXXXX, ES: 905XXXXXXXXX) &nbsp;|&nbsp; <strong>Network Id:</strong> IMSI</span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-database text-success"></i>
+                <span>MSISDN girip <strong>"BSCS'ten Çek"</strong> ile IMSI doğrudan BSCS veritabanından getirilir</span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-mobile-alt text-success"></i>
+                <span>IMEI telefonda <code>*#06#</code> tuşlanarak öğrenilebilir</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card status-card" id="status-section" style="display: none;">
+    <div class="card-header">
+        <h3><i class="fas fa-tasks"></i> Kayıt Durumu</h3>
+        <span class="status-badge" id="status-badge">Beklemede</span>
+    </div>
+    <div class="card-body">
+        <div class="progress-bar-container" style="margin-bottom: 12px; height: 8px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden;">
+            <div id="status-progress" style="width: 0%; height: 100%; background: var(--accent-primary, #3b82f6); transition: width 0.3s ease;"></div>
+        </div>
+        <div class="status-message" id="status-message"></div>
+    </div>
+</div>
+
+<div class="card live-screen-card" id="es-live-section" style="display: none; margin-top: 20px;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;"><i class="fas fa-desktop text-primary"></i> ES Canlı Tarayıcı Ekranı (İnteraktif)</h3>
+        <span class="badge badge-info" id="live-indicator"><i class="fas fa-circle text-success" style="font-size: 8px;"></i> Canlı Bağlantı</span>
+    </div>
+    <div class="card-body" style="text-align: center;">
+        <div class="alert alert-info" style="margin-bottom: 12px; font-size: 13px; text-align: left; background: rgba(0, 192, 243, 0.1); border-left: 4px solid #00c0f3; padding: 10px 14px; border-radius: 4px;">
+            <i class="fas fa-hand-pointer text-primary"></i> <strong>Canlı Kontrol:</strong> Aşağıdaki ekran doğrudan arka plandaki Playwright oturumunu gösterir. reCAPTCHA (<em>"I'm not a robot"</em>) kutucuğuna veya seçim resimlerine doğrudan tıklayabilirsiniz. Tıklamanız anında tarayıcıya iletilir.
+        </div>
+        <div id="live-screen-container" style="position: relative; display: inline-block; min-width: 640px; min-height: 400px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 2px solid var(--accent-primary, #00c0f3); background: #0f172a; max-width: 100%;">
+            <div id="screen-loading-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; font-size: 14px; z-index: 2;">
+                <i class="fas fa-spinner fa-spin fa-2x text-primary" style="margin-bottom: 10px;"></i>
+                <span>Canlı ekran akışı başlatılıyor...</span>
+            </div>
+            <img id="es-live-img" style="display: none; width: 100%; height: auto; cursor: crosshair; position: relative; z-index: 3;" onclick="onScreenClick(event)">
+            <div id="click-feedback" style="position: absolute; width: 28px; height: 28px; border-radius: 50%; background: rgba(0, 192, 243, 0.5); border: 2px solid #00c0f3; transform: translate(-50%, -50%); display: none; pointer-events: none; transition: opacity 0.3s; z-index: 10;"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let screenRefreshTimer = null;
+    let activeTaskId = null;
+
+    function startLiveScreen(taskId) {
+        activeTaskId = taskId;
+        document.getElementById('es-live-section').style.display = 'block';
+        const overlay = document.getElementById('screen-loading-overlay');
+        if (overlay) overlay.style.display = 'flex';
+        const img = document.getElementById('es-live-img');
+        if (img) img.style.display = 'none';
+
+        if (screenRefreshTimer) clearInterval(screenRefreshTimer);
+
+        const refresh = () => {
+            if (!activeTaskId) return;
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                if (!activeTaskId) return;
+                if (overlay) overlay.style.display = 'none';
+                if (img) {
+                    img.src = tempImg.src;
+                    img.style.display = 'block';
+                }
+            };
+            tempImg.src = '/api/mdm/screen/' + activeTaskId + '?t=' + Date.now();
+        };
+
+        refresh();
+        screenRefreshTimer = setInterval(refresh, 600);
+    }
+
+    function stopLiveScreen() {
+        if (screenRefreshTimer) {
+            clearInterval(screenRefreshTimer);
+            screenRefreshTimer = null;
+        }
+        activeTaskId = null;
+    }
+
+    async function onScreenClick(e) {
+        if (!activeTaskId) return;
+        const img = document.getElementById('es-live-img');
+        const rect = img.getBoundingClientRect();
+        const scaleX = 1280 / rect.width;
+        const scaleY = 800 / rect.height;
+        const clickX = Math.round((e.clientX - rect.left) * scaleX);
+        const clickY = Math.round((e.clientY - rect.top) * scaleY);
+
+        const fb = document.getElementById('click-feedback');
+        if (fb) {
+            fb.style.left = (e.clientX - rect.left) + 'px';
+            fb.style.top = (e.clientY - rect.top) + 'px';
+            fb.style.display = 'block';
+            fb.style.opacity = '1';
+            setTimeout(() => { fb.style.opacity = '0'; }, 350);
+        }
+
+        try {
+            await apiCall('/api/mdm/click/' + activeTaskId, 'POST', { x: clickX, y: clickY });
+            setTimeout(() => {
+                img.src = '/api/mdm/screen/' + activeTaskId + '?t=' + Date.now();
+            }, 300);
+        } catch (err) {
+            console.error('Click error:', err);
+        }
+    }
+
+    function onQuickLineSelect(val) {
+        if (!val) return;
+        const [msisdn, imsi] = val.split('|');
+        if (msisdn) document.getElementById('msisdn').value = msisdn;
+        if (imsi) document.getElementById('imsi').value = imsi;
+        showToast(`Hat seçildi: ${msisdn}`, 'info');
+    }
+
+    async function fetchIMSI() {
+        const msisdn = document.getElementById('msisdn').value.trim();
+        if (!/^\d{10}$/.test(msisdn)) {
+            document.getElementById('msisdn').classList.add('input-error');
+            return showToast('Önce 10 haneli MSISDN girin.', 'error');
+        }
+        document.getElementById('msisdn').classList.remove('input-error');
+        const btn = document.getElementById('btn-fetch-imsi');
+        setLoading(btn, true, 'Sorgulanıyor...');
+        const res = await apiCall('/api/mdm/fetch-imsi', 'POST', { msisdn });
+        setLoading(btn, false);
+        if (res.success) {
+            document.getElementById('imsi').value = res.data.imsi;
+            showToast('IMSI bulundu: ' + res.data.imsi, 'success');
+        } else {
+            showToast(res.error, 'error');
+        }
+    }
+
+    async function registerDevice() {
+        const msisdn = document.getElementById('msisdn').value.trim();
+        const imsi = document.getElementById('imsi').value.trim();
+        const imei = document.getElementById('imei').value.trim();
+        const target = document.getElementById('target-system').value;
+
+        if (!msisdn || !imsi || !imei) {
+            return showToast('MSISDN, IMSI ve IMEI alanlarının hepsi gerekli.', 'error');
+        }
+
+        const btn = document.getElementById('btn-register');
+        setLoading(btn, true, 'Kaydediliyor...');
+        document.getElementById('status-section').style.display = 'block';
+        setStatus('running', 'Kayıt başlatılıyor...', 5);
+
+        const res = await apiCall('/api/mdm/register', 'POST', {
+            msisdn, imsi, imei, target
+        });
+        if (!res.success) {
+            setStatus('failed', res.error, 0);
+            return setLoading(btn, false);
+        }
+        const taskId = res.data.task_id;
+        if (target === 'es' || target === 'both') {
+            startLiveScreen(taskId);
+        }
+
+        const timer = setInterval(async () => {
+            const s = await apiCall('/api/mdm/status/' + taskId);
+            if (!s.success) return;
+            setStatus(s.data.status, s.data.message, s.data.progress || 0);
+            if (s.data.has_screen && (target === 'es' || target === 'both') && !screenRefreshTimer) {
+                startLiveScreen(taskId);
+            }
+            if (s.data.status !== 'running') {
+                clearInterval(timer);
+                stopLiveScreen();
+                setLoading(btn, false);
+                if (s.data.status === 'completed') {
+                    showToast('Cihaz kaydı tamamlandı!', 'success');
+                } else {
+                    showToast(s.data.message, 'error');
+                }
+            }
+        }, 1200);
+    }
+
+    function setStatus(status, message, progress) {
+        const map = {
+            running:   ['Çalışıyor', 'badge-warning', 'fa-spinner fa-spin'],
+            completed: ['Tamamlandı', 'badge-success', 'fa-check-circle'],
+            failed:    ['Hata', 'badge-danger', 'fa-times-circle'],
+        };
+        const [label, cls, icon] = map[status] || ['Beklemede', 'badge-info', 'fa-hourglass-half'];
+        const badge = document.getElementById('status-badge');
+        badge.className = 'status-badge ' + cls;
+        badge.textContent = label;
+        const progEl = document.getElementById('status-progress');
+        if (progEl && typeof progress === 'number') {
+            progEl.style.width = Math.min(100, Math.max(0, progress)) + '%';
+        }
+        document.getElementById('status-message').innerHTML = `<i class="fas ${icon}"></i> <span>${escapeHtml(message)}</span>`;
+    }
+</script>
+{% endblock %}

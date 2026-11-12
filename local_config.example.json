@@ -1,0 +1,26 @@
+{
+  "db": {
+    "bscs": {
+      "username": "",
+      "password": ""
+    },
+    "cmpdb": {
+      "username": "",
+      "password": ""
+    },
+    "merns": {
+      "username": "",
+      "password": ""
+    }
+  },
+  "testportal": {
+    "user": "",
+    "password": ""
+  },
+  "credentials": {
+    "sicil": "",
+    "password": "",
+    "name": ""
+  },
+  "default_opera_user": "61044774"
+}

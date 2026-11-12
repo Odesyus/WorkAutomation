@@ -1,0 +1,836 @@
+{% extends "base.html" %}
+
+{% block title %}Opera Aktivasyon - Otomasyon{% endblock %}
+{% block page_title %}Opera Aktivasyon{% endblock %}
+
+{% block content %}
+<div class="page-grid">
+    <!-- Form Section -->
+    <div class="card form-card">
+        <div class="card-header">
+            <h3><i class="fas fa-satellite-dish"></i> Aktivasyon Bilgileri</h3>
+        </div>
+        <div class="card-body">
+            <form id="opera-form" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="opera-user"><i class="fas fa-user-shield"></i> Opera Kullanıcısı</label>
+                    <select id="opera-user" name="opera_user">
+                        {% if opera_users %}
+                            {% for u_key, u_data in opera_users.items() %}
+                            <option value="{{ u_data.username }}" {% if u_data.username == default_opera_user %}selected{% endif %}>
+                                {{ u_data.label }}
+                            </option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="61044774" selected>61044774 (Varsayılan)</option>
+                            <option value="CC51">CC51</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="customer-select"><i class="fas fa-user-check"></i> Hazır Test Kişisi Seç (İsteğe Bağlı)</label>
+                    <select id="customer-select" onchange="selectCustomer(this)">
+                        <option value="">Listeden hazır kişi seçin veya aşağıdan MernsDB'den çekin...</option>
+                        {% if test_customers %}
+                            {% for c in test_customers %}
+                            <option value="{{ c.tckn }}" data-dt="{{ c.dt }}" data-name="{{ c.ad }} {{ c.soyad }}">
+                                {{ c.ad }} {{ c.soyad }} — TCKN: {{ c.tckn }} ({{ c.dt }})
+                            </option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tckn"><i class="fas fa-id-card"></i> TCKN</label>
+                    <div class="input-with-action">
+                        <input type="text" id="tckn" name="tckn" placeholder="11 haneli TC Kimlik No" maxlength="11" pattern="\d{11}" required>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-fetch-merns" onclick="fetchMerns()">
+                            <i class="fas fa-download"></i> MernsDB'den Çek
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="dogum_tarihi"><i class="fas fa-calendar-alt"></i> Doğum Tarihi</label>
+                    <input type="text" id="dogum_tarihi" name="dogum_tarihi" placeholder="GG/AA/YYYY" maxlength="10" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="iccid"><i class="fas fa-sim-card"></i> ICCID</label>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                        <select id="pospre-filter-select" onchange="filterIccidSelect(this.value)" style="width: auto; min-width: 175px; font-weight: 600;">
+                            <option value="all">Pos / Pre (Tümü)</option>
+                            <option value="Pos" selected>Faturalı (Pos)</option>
+                            <option value="Pre">Faturasız (Pre)</option>
+                        </select>
+                        <span style="font-size: 0.85rem; color: var(--text-muted); align-self: center;">
+                            Seçilen ödeme tipine uygun temiz ICCID'ler listelenir
+                        </span>
+                    </div>
+                    <div class="input-with-select">
+                        <input type="text" id="iccid" name="iccid" placeholder="ICCID numarası" required>
+                        <select id="iccid-select" onchange="selectICCID(this.value)" title="Temiz ICCID'ler">
+                            <option value="">Listeden temiz ICCID seçiniz ({{ (test_lines or [])|length }} adet)...</option>
+                            {% if test_lines %}
+                                {% for line in test_lines %}
+                                <option value="{{ line.iccid }}" data-pospre="{{ line.pos_pre or '-' }}" data-msisdn="{{ line.msisdn }}">
+                                    [{{ line.owner }}] {{ line.msisdn }} — {{ line.iccid }} ({{ line.pos_pre or '-' }})
+                                </option>
+                                {% endfor %}
+                            {% elif iccid_list %}
+                                {% for iccid_item in iccid_list %}
+                                <option value="{{ iccid_item }}">{{ iccid_item }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Şebeke & Servis Seçenekleri -->
+                <div class="form-group">
+                    <label><i class="fas fa-signal"></i> Şebeke Seçenekleri (2G / 3G / 4.5G / 5G)</label>
+                    <div class="pref-chip-group" id="network-chip-group">
+                        <label class="pref-chip active" id="chip-gsm">
+                            <input type="checkbox" id="opt-gsm" checked onchange="onNetworkChange('gsm')">
+                            <i class="fas fa-broadcast-tower"></i>
+                            <span>2G</span>
+                        </label>
+                        <label class="pref-chip active" id="chip-wcdma">
+                            <input type="checkbox" id="opt-wcdma" checked onchange="onNetworkChange('wcdma')">
+                            <i class="fas fa-signal"></i>
+                            <span>3G</span>
+                        </label>
+                        <label class="pref-chip active" id="chip-lte">
+                            <input type="checkbox" id="opt-lte" checked onchange="onNetworkChange('lte')">
+                            <i class="fas fa-bolt"></i>
+                            <span>4.5G</span>
+                        </label>
+                        <label class="pref-chip" id="chip-nr">
+                            <input type="checkbox" id="opt-nr" onchange="onNetworkChange('nr')">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>5G</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-phone-volume"></i> Ses Servis Seçenekleri (VoLTE / VoWifi)</label>
+                    <div class="pref-chip-group" id="voice-chip-group">
+                        <label class="pref-chip active" id="chip-volte">
+                            <input type="checkbox" id="opt-volte" checked onchange="onVoiceChange('volte')">
+                            <i class="fas fa-phone-alt"></i>
+                            <span>VoLTE</span>
+                        </label>
+                        <label class="pref-chip active" id="chip-vowifi">
+                            <input type="checkbox" id="opt-vowifi" checked onchange="onVoiceChange('vowifi')">
+                            <i class="fas fa-wifi"></i>
+                            <span>VoWifi</span>
+                        </label>
+                    </div>
+                    <small class="text-muted" style="display: block; margin-top: 8px; font-size: 0.82rem;">
+                        <i class="fas fa-info-circle"></i> <strong>Otomatik Bağımlılık:</strong> 4.5G seçildiğinde 2G ve 3G; 5G seçildiğinde 2G, 3G, 4.5G ve VoLTE; VoLTE veya VoWifi seçildiğinde ise 4.5G (2G ve 3G ile birlikte) otomatik olarak seçilir.
+                    </small>
+                </div>
+
+                <div class="form-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="btn btn-primary btn-lg" id="btn-start" onclick="startActivation()">
+                        <i class="fas fa-play-circle"></i> Aktivasyonu Başlat
+                    </button>
+                    <button type="button" class="btn btn-danger btn-lg" id="btn-stop" onclick="stopActivation()" style="display: none; background: #ef4444; color: #fff; border: none;">
+                        <i class="fas fa-stop-circle"></i> Durdur
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-lg" id="btn-snap" onclick="takeSnapshot()" style="display: none;">
+                        <i class="fas fa-camera"></i> Ekran Görüntüsü Al
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sağ Kısım: Temiz ICCID Listesi ve Çoklu Seçim Paneli -->
+    <div class="card multi-iccid-card">
+        <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
+            <h3><i class="fas fa-layer-group"></i> Temiz ICCID Havuzu</h3>
+            <span class="badge badge-info" id="multi-pool-count">0 Temiz Hat</span>
+        </div>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+            <!-- Filtreler & Hızlı Seçimler -->
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <select id="pool-pospre-filter" onchange="renderPoolList()" style="flex: 1; min-width: 130px; font-size: 12.5px; padding: 6px 10px;">
+                    <option value="all">Tip: Tümü</option>
+                    <option value="Pos">Sadece Pos</option>
+                    <option value="Pre">Sadece Pre</option>
+                </select>
+                <select id="pool-owner-filter" onchange="renderPoolList()" style="flex: 1; min-width: 130px; font-size: 12.5px; padding: 6px 10px;">
+                    <option value="all">Kullanıcı: Tümü</option>
+                    {% if test_lines %}
+                        {% set owners = [] %}
+                        {% for line in test_lines %}
+                            {% if line.owner and line.owner not in owners %}
+                                {% set _ = owners.append(line.owner) %}
+                                <option value="{{ line.owner }}">{{ line.owner }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+
+            <!-- Arama & Seçim Butonları -->
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="text" id="pool-search-input" oninput="renderPoolList()" placeholder="MSISDN veya ICCID ara..." style="font-size: 12px; padding: 6px 10px; height: 32px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllPool(true)" title="Filtrelenenlerin tümünü seç" style="white-space: nowrap; font-size: 11.5px; padding: 4px 8px;">Tümünü Seç</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="toggleSelectAllPool(false)" title="Seçimleri kaldır" style="white-space: nowrap; font-size: 11.5px; padding: 4px 8px;">Temizle</button>
+            </div>
+
+            <!-- ICCID Listesi (Kaydırılabilir) -->
+            <div id="pool-list-container" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--surface-border); border-radius: var(--radius-sm); padding: 6px; display: flex; flex-direction: column; gap: 6px; background: var(--bg);">
+                <!-- Dinamik JavaScript ile doldurulur -->
+            </div>
+
+            <!-- Çoklu Başlat Butonu -->
+            <div style="border-top: 1px solid var(--surface-border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px;">
+                    <span style="color: var(--text-muted);">Seçilen Hat Sayısı:</span>
+                    <strong id="pool-selected-count" style="color: var(--primary); font-size: 14px;">0</strong>
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-start-multi" onclick="startMultiActivation()" disabled style="width: 100%; justify-content: center; font-weight: 600;">
+                    <i class="fas fa-play-circle"></i> <span id="btn-start-multi-label">Seçilenleri Sırayla Aktive Et (0)</span>
+                </button>
+                <small class="text-muted" style="font-size: 11px; text-align: center;">
+                    <i class="fas fa-magic"></i> Her hat için <strong>MernsDB'den otomatik yeni TCKN & Doğum Tarihi</strong> çekilir.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Section (hidden initially) -->
+<div class="card status-card" id="status-section" style="display: none;">
+    <div class="card-header">
+        <h3><i class="fas fa-tasks"></i> Aktivasyon Durumu</h3>
+        <span class="status-badge" id="status-badge">Beklemede</span>
+    </div>
+    <div class="card-body">
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+            <span class="progress-text" id="progress-text">%0</span>
+        </div>
+
+        <!-- Status Message -->
+        <div class="status-message" id="status-message">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>İşlem başlatılıyor...</span>
+        </div>
+
+        <!-- Error Screenshot Container (hidden unless error occurs) -->
+        <div id="error-screenshot-box" style="display: none; margin-bottom: 16px; border: 1.5px solid rgba(239, 68, 68, 0.45); border-radius: 12px; overflow: hidden; background: rgba(239, 68, 68, 0.06);">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid rgba(239, 68, 68, 0.25); font-weight: 600; color: #f87171;">
+                <span><i class="fas fa-camera"></i> Hata Anı Ekran Görüntüsü</span>
+                <a id="error-screenshot-link" href="#" target="_blank" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; padding: 4px 10px;">
+                    <i class="fas fa-external-link-alt"></i> Tam Boyut Aç
+                </a>
+            </div>
+            <div style="padding: 12px; text-align: center;">
+                <a id="error-screenshot-img-link" href="#" target="_blank" title="Tam boyutta görmek için tıklayın">
+                    <img id="error-screenshot-img" src="" alt="Hata Anı Ekran Görüntüsü" style="max-width: 100%; max-height: 480px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.25); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); cursor: zoom-in;">
+                </a>
+            </div>
+        </div>
+
+        <!-- Log Output -->
+        <div class="log-output" id="log-output">
+            <div class="log-header">
+                <span><i class="fas fa-terminal"></i> İşlem Günlüğü</span>
+                <button class="btn btn-ghost btn-sm" onclick="clearLog()">
+                    <i class="fas fa-eraser"></i> Temizle
+                </button>
+            </div>
+            <div class="log-content" id="log-content"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .pref-chip-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 6px;
+    }
+    .pref-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1.5px solid rgba(148, 163, 184, 0.35);
+        background: rgba(148, 163, 184, 0.08);
+        cursor: pointer;
+        user-select: none;
+        font-weight: 600;
+        font-size: 0.92rem;
+        transition: all 0.2s ease;
+    }
+    .pref-chip input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #6366f1;
+        cursor: pointer;
+        margin: 0;
+    }
+    .pref-chip:hover {
+        border-color: #6366f1;
+        transform: translateY(-1px);
+    }
+    .pref-chip.active {
+        border-color: #6366f1;
+        background: rgba(99, 102, 241, 0.16);
+        color: #818cf8;
+        box-shadow: 0 2px 10px rgba(99, 102, 241, 0.18);
+    }
+    body.theme-corporate .pref-chip.active {
+        border-color: #0066cc;
+        background: rgba(0, 102, 204, 0.12);
+        color: #0052a3;
+        box-shadow: 0 2px 8px rgba(0, 102, 204, 0.15);
+    }
+    .pool-line-card {
+        user-select: none;
+    }
+    .pool-line-card:hover {
+        border-color: var(--primary) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+</style>
+<script>
+    let pollTimer = null;
+    let logOffset = 0;
+    let currentTaskId = null;
+    let rawCleanLines = {{ (test_lines or []) | tojson }};
+    let selectedPoolIccids = new Set();
+
+    function syncChipClass(key) {
+        const cb = document.getElementById('opt-' + key);
+        const chip = document.getElementById('chip-' + key);
+        if (cb && chip) {
+            chip.classList.toggle('active', cb.checked);
+        }
+    }
+
+    function syncAllChips() {
+        ['gsm', 'wcdma', 'lte', 'nr', 'volte', 'vowifi'].forEach(syncChipClass);
+    }
+
+    function onNetworkChange(selectedKey) {
+        const order = ['gsm', 'wcdma', 'lte', 'nr'];
+        const idx = order.indexOf(selectedKey);
+        const clickedCb = document.getElementById('opt-' + selectedKey);
+        if (!clickedCb || idx === -1) return;
+
+        if (clickedCb.checked) {
+            // Seçilen nesil ve altındaki tüm nesilleri otomatik seç (Örn: 4.5G -> 2G, 3G, 4.5G)
+            for (let i = 0; i <= idx; i++) {
+                document.getElementById('opt-' + order[i]).checked = true;
+            }
+            // 5G seçildiğinde VoLTE otomatik seçilir
+            if (selectedKey === 'nr') {
+                document.getElementById('opt-volte').checked = true;
+            }
+        } else {
+            // Kaldırılan neslin üstündeki nesilleri de otomatik kaldır (Örn: 4.5G kaldırılırsa 5G, VoLTE ve VoWifi de kalkar)
+            for (let i = idx; i < order.length; i++) {
+                document.getElementById('opt-' + order[i]).checked = false;
+            }
+            if (!document.getElementById('opt-lte').checked) {
+                document.getElementById('opt-volte').checked = false;
+                document.getElementById('opt-vowifi').checked = false;
+            }
+        }
+        syncAllChips();
+    }
+
+    function onVoiceChange(key) {
+        const cb = document.getElementById('opt-' + key);
+        if ((key === 'volte' || key === 'vowifi') && cb) {
+            if (cb.checked) {
+                // VoLTE veya VoWifi seçildiğinde minimum 4.5G (ve dolayısıyla 2G, 3G) otomatik seçilir
+                document.getElementById('opt-gsm').checked = true;
+                document.getElementById('opt-wcdma').checked = true;
+                document.getElementById('opt-lte').checked = true;
+            } else if (key === 'volte') {
+                // VoLTE kaldırılırsa 5G de kaldırılır
+                document.getElementById('opt-nr').checked = false;
+            }
+        }
+        syncAllChips();
+    }
+
+    function selectICCID(value) {
+        if (value) document.getElementById('iccid').value = value;
+    }
+
+    let allIccidOptions = [];
+    function initIccidOptions() {
+        const sel = document.getElementById('iccid-select');
+        if (!sel) return;
+        allIccidOptions = Array.from(sel.querySelectorAll('option[value]:not([value=""])')).map(opt => ({
+            value: opt.value,
+            text: opt.textContent,
+            pospre: opt.getAttribute('data-pospre') || '-',
+            msisdn: opt.getAttribute('data-msisdn') || ''
+        }));
+        const savedPosPre = localStorage.getItem('opera_pospre_filter') || 'all';
+        const filterSel = document.getElementById('pospre-filter-select');
+        if (filterSel) {
+            filterSel.value = savedPosPre;
+            filterIccidSelect(savedPosPre);
+        }
+    }
+
+    function filterIccidSelect(pospre) {
+        localStorage.setItem('opera_pospre_filter', pospre);
+        const sel = document.getElementById('iccid-select');
+        if (!sel) return;
+        const currentVal = document.getElementById('iccid').value.trim();
+
+        // İlk boş option'ı koru
+        const placeholderText = pospre === 'all' 
+            ? 'temiz ICCID' 
+            : (pospre === 'Pos' ? 'temiz POS (Faturalı) ICCID' : 'temiz PRE (Faturasız) ICCID');
+        
+        sel.innerHTML = '';
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        sel.appendChild(defaultOpt);
+
+        const filtered = allIccidOptions.filter(item => {
+            if (pospre === 'all') return true;
+            return item.pospre === pospre;
+        });
+
+        defaultOpt.textContent = `Listeden ${placeholderText} seçiniz (${filtered.length} adet)...`;
+
+        filtered.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.text;
+            opt.setAttribute('data-pospre', item.pospre);
+            opt.setAttribute('data-msisdn', item.msisdn);
+            sel.appendChild(opt);
+        });
+
+        // Seçili ICCID filtrelenenler arasında yoksa input'u temizle
+        if (currentVal && !filtered.some(i => i.value === currentVal)) {
+            document.getElementById('iccid').value = '';
+        }
+    }
+
+    function getFilteredPoolLines() {
+        const pospre = document.getElementById('pool-pospre-filter')?.value || 'all';
+        const owner = document.getElementById('pool-owner-filter')?.value || 'all';
+        const q = (document.getElementById('pool-search-input')?.value || '').trim().toLowerCase();
+
+        return rawCleanLines.filter(line => {
+            if (pospre !== 'all' && (line.pos_pre || '').toLowerCase() !== pospre.toLowerCase()) return false;
+            if (owner !== 'all' && line.owner !== owner) return false;
+            if (q) {
+                const m = (line.msisdn || '').toLowerCase();
+                const ic = (line.iccid || '').toLowerCase();
+                if (!m.includes(q) && !ic.includes(q)) return false;
+            }
+            return true;
+        });
+    }
+
+    function renderPoolList() {
+        const container = document.getElementById('pool-list-container');
+        if (!container) return;
+
+        const countBadge = document.getElementById('multi-pool-count');
+        if (countBadge) countBadge.textContent = `${rawCleanLines.length} Temiz Hat`;
+
+        const filtered = getFilteredPoolLines();
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); padding: 24px 10px; font-size: 12.5px;">
+                    <i class="fas fa-inbox" style="font-size: 24px; margin-bottom: 6px; display: block; opacity: 0.5;"></i>
+                    Filtreye uygun temiz hat bulunamadı.
+                </div>
+            `;
+            updatePoolSelectionUI();
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(line => {
+            const isChecked = selectedPoolIccids.has(line.iccid);
+            const isPos = (line.pos_pre || '').toLowerCase() === 'pos';
+            const typeBadge = isPos 
+                ? `<span style="font-size: 10.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; background: rgba(59, 130, 246, 0.15); color: #3b82f6;">Pos (Faturalı)</span>`
+                : `<span style="font-size: 10.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; background: rgba(16, 185, 129, 0.15); color: #10b981;">Pre (Faturasız)</span>`;
+            const ownerBadge = line.owner ? `<span style="font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(148, 163, 184, 0.18); color: var(--text-muted);">${escapeHtml(line.owner)}</span>` : '';
+
+            html += `
+                <div class="pool-line-card" onclick="togglePoolItem('${escapeHtml(line.iccid)}', event)" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; border: 1.5px solid ${isChecked ? 'var(--primary)' : 'var(--surface-border)'}; background: ${isChecked ? 'rgba(99, 102, 241, 0.10)' : 'var(--surface)'}; cursor: pointer; transition: all 0.15s ease;">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); togglePoolItem('${escapeHtml(line.iccid)}', event);" style="accent-color: var(--primary); width: 16px; height: 16px; cursor: pointer; flex-shrink: 0;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                            <strong style="font-size: 13px; font-family: var(--font-mono, monospace); color: var(--text);">${escapeHtml(line.msisdn || '-')}</strong>
+                            ${typeBadge}
+                            ${ownerBadge}
+                        </div>
+                        <div style="font-size: 11px; font-family: var(--font-mono, monospace); color: var(--text-muted); margin-top: 2px; letter-spacing: 0.3px;">
+                            ${escapeHtml(line.iccid)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        updatePoolSelectionUI();
+    }
+
+    function togglePoolItem(iccid, ev) {
+        if (selectedPoolIccids.has(iccid)) {
+            selectedPoolIccids.delete(iccid);
+        } else {
+            selectedPoolIccids.add(iccid);
+        }
+        renderPoolList();
+    }
+
+    function toggleSelectAllPool(selectState) {
+        const filtered = getFilteredPoolLines();
+        if (selectState) {
+            filtered.forEach(l => selectedPoolIccids.add(l.iccid));
+        } else {
+            filtered.forEach(l => selectedPoolIccids.delete(l.iccid));
+        }
+        renderPoolList();
+    }
+
+    function updatePoolSelectionUI() {
+        const count = selectedPoolIccids.size;
+        const countElem = document.getElementById('pool-selected-count');
+        if (countElem) countElem.textContent = count;
+
+        const btn = document.getElementById('btn-start-multi');
+        const label = document.getElementById('btn-start-multi-label');
+        if (btn && label) {
+            btn.disabled = (count === 0);
+            label.textContent = `Seçilenleri Sırayla Aktive Et (${count})`;
+        }
+    }
+
+    async function startMultiActivation() {
+        if (selectedPoolIccids.size === 0) {
+            showToast('Lütfen listeden en az bir hat seçiniz.', 'warning');
+            return;
+        }
+
+        const selectedLines = rawCleanLines.filter(l => selectedPoolIccids.has(l.iccid));
+        if (selectedLines.length === 0) {
+            showToast('Seçilen hatlar havuzda bulunamadı.', 'error');
+            return;
+        }
+
+        if (!confirm(`${selectedLines.length} adet hat için sırayla aktivasyon başlatılacaktır.\n\nHer hat için MernsDB'den otomatik olarak yeni bir müşteri (TCKN ve Doğum Tarihi) çekilecektir.\n\nOnaylıyor musunuz?`)) {
+            return;
+        }
+
+        const options = {
+            gsm: document.getElementById('opt-gsm').checked,
+            wcdma: document.getElementById('opt-wcdma').checked,
+            lte: document.getElementById('opt-lte').checked,
+            nr: document.getElementById('opt-nr').checked,
+            volte: document.getElementById('opt-volte').checked,
+            vowifi: document.getElementById('opt-vowifi').checked,
+        };
+
+        const btn = document.getElementById('btn-start-multi');
+        const btnSingle = document.getElementById('btn-start');
+        setLoading(btn, true, 'Başlatılıyor...');
+        if (btnSingle) btnSingle.disabled = true;
+
+        const section = document.getElementById('status-section');
+        section.style.display = 'block';
+        section.scrollIntoView({ behavior: 'smooth' });
+        clearLog();
+        document.getElementById('error-screenshot-box').style.display = 'none';
+        document.getElementById('error-screenshot-img').src = '';
+        logOffset = 0;
+        updateStatus('running', `${selectedLines.length} hat için çoklu aktivasyon isteği gönderiliyor...`, 0);
+
+        const operaUser = document.getElementById('opera-user')?.value || '61044774';
+        const res = await apiCall('/api/opera/start-multi', 'POST', {
+            items: selectedLines,
+            options: options,
+            opera_user: operaUser
+        });
+
+        if (res.success) {
+            const taskId = res.data.task_id;
+            currentTaskId = taskId;
+            document.getElementById('btn-stop').style.display = 'inline-flex';
+            document.getElementById('btn-snap').style.display = 'inline-flex';
+            pollTimer = setInterval(() => pollStatus(taskId), 2000);
+            pollStatus(taskId);
+            showToast(res.message || `${selectedLines.length} hat için aktivasyon başlatıldı.`, 'info');
+        } else {
+            updateStatus('failed', res.error || 'Çoklu aktivasyon başlatılamadı.', 0);
+            showToast(res.error || 'Çoklu aktivasyon başlatılamadı.', 'error');
+            setLoading(btn, false);
+            updatePoolSelectionUI();
+            if (btnSingle) btnSingle.disabled = false;
+            document.getElementById('btn-stop').style.display = 'none';
+            document.getElementById('btn-snap').style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initIccidOptions();
+        renderPoolList();
+    });
+
+    function selectCustomer(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return;
+        document.getElementById('tckn').value = opt.value;
+        document.getElementById('dogum_tarihi').value = opt.dataset.dt || '';
+        showToast(opt.dataset.name + ' bilgileri dolduruldu.', 'info');
+    }
+
+    async function fetchMerns() {
+        const btn = document.getElementById('btn-fetch-merns');
+        setLoading(btn, true, 'Çekiliyor...');
+        const res = await apiCall('/api/opera/fetch-merns', 'POST');
+        setLoading(btn, false);
+        if (res.success) {
+            document.getElementById('tckn').value = res.data.tckn || '';
+            document.getElementById('dogum_tarihi').value = res.data.dt || '';
+            const ad = [res.data.ad, res.data.soyad].filter(Boolean).join(' ');
+            showToast('MernsDB: ' + (ad || 'kişi') + ' bilgileri dolduruldu.', 'success');
+        } else {
+            showToast(res.error || 'MernsDB verisi çekilemedi.', 'error');
+        }
+    }
+
+    function markError(id, msg) {
+        document.getElementById(id).classList.add('input-error');
+        showToast(msg, 'error');
+    }
+
+    async function startActivation() {
+        const tckn = document.getElementById('tckn').value.trim();
+        const dt = document.getElementById('dogum_tarihi').value.trim();
+        const iccid = document.getElementById('iccid').value.trim();
+
+        if (!/^\d{11}$/.test(tckn)) return markError('tckn', 'Geçerli bir TCKN giriniz (11 hane).');
+        if (!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dt)) return markError('dogum_tarihi', 'Doğum tarihi GG/AA/YYYY formatında olmalı.');
+        if (!/^\d{19,20}$/.test(iccid)) return markError('iccid', 'ICCID 19-20 haneli olmalı.');
+
+        const options = {
+            gsm: document.getElementById('opt-gsm').checked,
+            wcdma: document.getElementById('opt-wcdma').checked,
+            lte: document.getElementById('opt-lte').checked,
+            nr: document.getElementById('opt-nr').checked,
+            volte: document.getElementById('opt-volte').checked,
+            vowifi: document.getElementById('opt-vowifi').checked,
+        };
+
+        const btn = document.getElementById('btn-start');
+        const btnMulti = document.getElementById('btn-start-multi');
+        setLoading(btn, true, 'Çalışıyor...');
+        if (btnMulti) btnMulti.disabled = true;
+
+        const section = document.getElementById('status-section');
+        section.style.display = 'block';
+        section.scrollIntoView({ behavior: 'smooth' });
+        clearLog();
+        document.getElementById('error-screenshot-box').style.display = 'none';
+        document.getElementById('error-screenshot-img').src = '';
+        logOffset = 0;
+        updateStatus('running', 'Aktivasyon isteği gönderiliyor...', 0);
+
+        let pos_pre = 'Pos';
+        const iccidSel = document.getElementById('iccid-select');
+        const selectedOpt = iccidSel?.querySelector(`option[value="${iccid}"]`);
+        if (selectedOpt && selectedOpt.dataset.pospre && selectedOpt.dataset.pospre !== '-') {
+            pos_pre = selectedOpt.dataset.pospre;
+        } else {
+            const filterVal = document.getElementById('pospre-filter-select')?.value;
+            if (filterVal && filterVal !== 'all') {
+                pos_pre = filterVal;
+            }
+        }
+
+        const operaUser = document.getElementById('opera-user')?.value || '61044774';
+        const res = await apiCall('/api/opera/start', 'POST', { tckn, dt, iccid, pos_pre, options, opera_user: operaUser });
+        if (res.success) {
+            const taskId = res.data.task_id;
+            currentTaskId = taskId;
+            document.getElementById('btn-stop').style.display = 'inline-flex';
+            document.getElementById('btn-snap').style.display = 'inline-flex';
+            pollTimer = setInterval(() => pollStatus(taskId), 2000);
+            pollStatus(taskId);
+        } else {
+            updateStatus('failed', res.error || 'Aktivasyon başlatılamadı.', 0);
+            showToast(res.error || 'Aktivasyon başlatılamadı.', 'error');
+            setLoading(btn, false);
+            updatePoolSelectionUI();
+            document.getElementById('btn-stop').style.display = 'none';
+            document.getElementById('btn-snap').style.display = 'none';
+        }
+    }
+
+    async function pollStatus(taskId) {
+        const res = await apiCall(`/api/opera/status/${taskId}?offset=${logOffset}`);
+        if (!res.success) {
+            appendLog('Durum sorgulanamadı: ' + res.error);
+            return;
+        }
+        const t = res.data;
+        (t.logs || []).forEach(appendLog);
+        logOffset = t.log_count;
+        updateStatus(t.status, t.message, t.progress);
+
+        if (t.screenshot_url) {
+            const shotBox = document.getElementById('error-screenshot-box');
+            const shotImg = document.getElementById('error-screenshot-img');
+            const shotLink = document.getElementById('error-screenshot-link');
+            const shotImgLink = document.getElementById('error-screenshot-img-link');
+            if (shotImg.getAttribute('data-url') !== t.screenshot_url) {
+                shotImg.setAttribute('data-url', t.screenshot_url);
+                shotImg.src = t.screenshot_url + '?t=' + Date.now();
+                shotLink.href = t.screenshot_url;
+                shotImgLink.href = t.screenshot_url;
+                shotBox.style.display = 'block';
+            }
+        }
+
+        // Başarılı veya kullanımda olan ICCID'leri anlık olarak temiz havuzdan düşür
+        if (t.dirty_iccids && t.dirty_iccids.length > 0) {
+            let changed = false;
+            t.dirty_iccids.forEach(ic => {
+                if (selectedPoolIccids.has(ic)) {
+                    selectedPoolIccids.delete(ic);
+                    changed = true;
+                }
+            });
+            const dirtySet = new Set(t.dirty_iccids);
+            const prevLen = rawCleanLines.length;
+            rawCleanLines = rawCleanLines.filter(i => !dirtySet.has(i.iccid));
+            if (rawCleanLines.length !== prevLen || changed) {
+                allIccidOptions = allIccidOptions.filter(i => !dirtySet.has(i.value));
+                const currentFilter = document.getElementById('pospre-filter-select')?.value || 'all';
+                filterIccidSelect(currentFilter);
+                renderPoolList();
+            }
+        }
+
+        if (t.status !== 'running') {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            setLoading(document.getElementById('btn-start'), false);
+            const btnMulti = document.getElementById('btn-start-multi');
+            if (btnMulti) setLoading(btnMulti, false);
+            document.getElementById('btn-start').disabled = false;
+            updatePoolSelectionUI();
+            document.getElementById('btn-stop').style.display = 'none';
+            document.getElementById('btn-snap').style.display = 'none';
+
+            // Tekli aktivasyonda formdaki ICCID tamamlandıysa temizle
+            const usedIccid = document.getElementById('iccid').value.trim();
+            if (usedIccid && (t.status === 'completed' || (t.message && t.message.includes('ICCID kullanımda')))) {
+                allIccidOptions = allIccidOptions.filter(i => i.value !== usedIccid);
+                rawCleanLines = rawCleanLines.filter(i => i.iccid !== usedIccid);
+                selectedPoolIccids.delete(usedIccid);
+                const currentFilter = document.getElementById('pospre-filter-select')?.value || 'all';
+                filterIccidSelect(currentFilter);
+                renderPoolList();
+            }
+            showToast(t.message, t.status === 'completed' ? 'success' : (t.status === 'stopped' ? 'info' : 'error'));
+        }
+    }
+
+    function updateStatus(status, message, progress) {
+        const badge = document.getElementById('status-badge');
+        document.getElementById('progress-fill').style.width = progress + '%';
+        document.getElementById('progress-text').textContent = '%' + Math.round(progress);
+
+        const map = {
+            running:   ['Çalışıyor', 'badge-warning', 'fa-spinner fa-spin'],
+            completed: ['Tamamlandı', 'badge-success', 'fa-check-circle'],
+            failed:    ['Hata', 'badge-danger', 'fa-times-circle'],
+            stopped:   ['Durduruldu', 'badge-secondary', 'fa-stop-circle'],
+        };
+        const [label, cls, icon] = map[status] || ['Beklemede', 'badge-info', 'fa-hourglass-half'];
+        badge.className = 'status-badge ' + cls;
+        badge.textContent = label;
+        document.getElementById('status-message').innerHTML =
+            `<i class="fas ${icon}"></i> <span>${escapeHtml(message)}</span>`;
+        document.getElementById('progress-fill').classList.toggle('progress-failed', status === 'failed');
+    }
+
+    function appendLog(text) {
+        const box = document.getElementById('log-content');
+        const line = document.createElement('div');
+        line.className = 'log-line' + (/HATA|hata/.test(text) ? ' log-error' : '');
+        line.textContent = text;
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function clearLog() {
+        document.getElementById('log-content').innerHTML = '';
+    }
+
+    async function stopActivation() {
+        if (!currentTaskId) return;
+        if (!confirm('Aktivasyonu durdurmak istediğinize emin misiniz?')) return;
+        const btn = document.getElementById('btn-stop');
+        setLoading(btn, true, 'Durduruluyor...');
+        const res = await apiCall(`/api/opera/stop/${currentTaskId}`, 'POST');
+        setLoading(btn, false);
+        if (res.success) {
+            showToast('Aktivasyon durduruldu.', 'info');
+        } else {
+            showToast(res.error || 'Durdurulamadı.', 'error');
+        }
+    }
+
+    async function takeSnapshot() {
+        if (!currentTaskId) return;
+        const btn = document.getElementById('btn-snap');
+        setLoading(btn, true, 'Alınıyor...');
+        const res = await apiCall(`/api/opera/screenshot/${currentTaskId}`, 'POST');
+        setLoading(btn, false);
+        if (res.success && res.data?.screenshot_url) {
+            const url = res.data.screenshot_url;
+            const shotBox = document.getElementById('error-screenshot-box');
+            const shotImg = document.getElementById('error-screenshot-img');
+            const shotLink = document.getElementById('error-screenshot-link');
+            const shotImgLink = document.getElementById('error-screenshot-img-link');
+            shotImg.setAttribute('data-url', url);
+            shotImg.src = url + '?t=' + Date.now();
+            shotLink.href = url;
+            shotImgLink.href = url;
+            shotBox.style.display = 'block';
+            shotBox.scrollIntoView({ behavior: 'smooth' });
+            showToast('Ekran görüntüsü alındı.', 'success');
+        } else {
+            showToast(res.error || 'Ekran görüntüsü alınamadı.', 'error');
+        }
+    }
+</script>
+{% endblock %}

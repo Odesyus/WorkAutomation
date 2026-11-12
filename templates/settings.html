@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Ayarlar - Otomasyon{% endblock %}
+{% block page_title %}Yapılandırma & Ayarlar{% endblock %}
+
+{% block content %}
+<div class="page-grid">
+    <!-- Sol Kart: Bireysel Ayarlar (Kullanıcıya Özel) -->
+    <div class="card form-card">
+        <div class="card-header">
+            <h3><i class="fas fa-user-lock"></i> Bireysel Giriş Bilgileri (Kişiye Özel)</h3>
+            <span class="badge badge-primary">Yerel / Gizli</span>
+        </div>
+        <div class="card-body">
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 20px;">
+                <i class="fas fa-info-circle"></i> Bu sayfadaki bilgiler yalnızca sizin bilgisayarınızda (<code>local_config.json</code>) saklanır, Git'e veya diğer kullanıcılara aktarılmaz.
+            </p>
+
+            <form id="settings-form" onsubmit="return false;">
+                <!-- BSCS Veritabanı -->
+                <div style="background: var(--bg-hover, rgba(255,255,255,0.03)); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 18px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 0.98rem; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-database" style="color: #3b82f6;"></i> BSCS Veritabanı (Bireysel)
+                    </h4>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="bscs_user"><i class="fas fa-user"></i> BSCS Kullanıcı Adı (Domain / DB User)</label>
+                        <input type="text" id="bscs_user" name="bscs_user" placeholder="BSCS kullanıcı adınız" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="bscs_pass"><i class="fas fa-key"></i> BSCS Şifre</label>
+                        <input type="password" id="bscs_pass" name="bscs_pass" placeholder="BSCS şifreniz" required>
+                    </div>
+                </div>
+
+                <!-- TestPortal Bilgileri -->
+                <div style="background: var(--bg-hover, rgba(255,255,255,0.03)); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 18px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 0.98rem; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-globe" style="color: #10b981;"></i> TestPortal Girişi (Bireysel)
+                    </h4>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="tp_user"><i class="fas fa-id-badge"></i> TestPortal Kullanıcı (Domain ID)</label>
+                        <input type="text" id="tp_user" name="tp_user" placeholder="Sicil / Domain ID giriniz" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="tp_pass"><i class="fas fa-lock"></i> TestPortal Şifre</label>
+                        <input type="password" id="tp_pass" name="tp_pass" placeholder="TestPortal şifreniz" required>
+                    </div>
+                </div>
+
+                <!-- Opera Tercihi -->
+                <div style="background: var(--bg-hover, rgba(255,255,255,0.03)); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 18px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 0.98rem; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-user-circle" style="color: #f59e0b;"></i> Varsayılan Opera Kullanıcısı
+                    </h4>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="default_opera_user">Aktivasyonlarda varsayılan seçili gelecek kullanıcı:</label>
+                        <select id="default_opera_user" name="default_opera_user">
+                            {% for u_key, u_data in opera_users.items() %}
+                            <option value="{{ u_data.username }}" {% if u_data.username == local_cfg.default_opera_user %}selected{% endif %}>
+                                {{ u_data.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Gelişmiş DB (CMPDB / MERNS) - Katlanabilir -->
+                <details style="background: var(--bg-hover, rgba(255,255,255,0.02)); border: 1px dashed var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                    <summary style="cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--text-muted);">
+                        <i class="fas fa-sliders-h"></i> Gelişmiş Veritabanı Kullanıcıları (CMPDB & MERNS)
+                    </summary>
+                    <div style="margin-top: 14px;">
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label for="cmpdb_user">CMPDB Kullanıcı Adı</label>
+                            <input type="text" id="cmpdb_user" name="cmpdb_user" value="{{ local_cfg.db.cmpdb.username if local_cfg.db and local_cfg.db.cmpdb else '' }}" placeholder="Kullanıcı Adı">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label for="cmpdb_pass">CMPDB Şifre</label>
+                            <input type="password" id="cmpdb_pass" name="cmpdb_pass" value="{{ local_cfg.db.cmpdb.password if local_cfg.db and local_cfg.db.cmpdb else '' }}" placeholder="Şifre">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label for="merns_user">MERNS Kullanıcı Adı</label>
+                            <input type="text" id="merns_user" name="merns_user" value="{{ local_cfg.db.merns.username if local_cfg.db and local_cfg.db.merns else '' }}" placeholder="Kullanıcı Adı">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="merns_pass">MERNS Şifre</label>
+                            <input type="password" id="merns_pass" name="merns_pass" value="{{ local_cfg.db.merns.password if local_cfg.db and local_cfg.db.merns else '' }}" placeholder="Şifre">
+                        </div>
+                    </div>
+                </details>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary btn-lg" id="btn-save-settings" onclick="saveSettings()">
+                        <i class="fas fa-save"></i> Ayarları Kaydet
+                    </button>
+                    <span id="save-status" style="margin-left: 12px; font-size: 0.9rem; font-weight: 500;"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sağ Kart: Ortak Sistem Bilgileri (Tüm Ekip İçin Sabit) -->
+    <div class="card info-card">
+        <div class="card-header">
+            <h3><i class="fas fa-shield-alt"></i> Ortak Sistem Parametreleri (Tüm Ekip)</h3>
+            <span class="badge badge-success">Ortak / Sabit</span>
+        </div>
+        <div class="card-body">
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+                Aşağıdaki parametreler projenin kaynak kodunda ortak tanımlıdır ve tüm ekip arkadaşları için otomatik olarak kullanılır:
+            </p>
+
+            <!-- Veritabanı IP / DSN Bilgileri -->
+            <div class="info-group" style="margin-bottom: 16px;">
+                <h4 style="font-size: 0.92rem; color: var(--text-color); margin-bottom: 8px;">
+                    <i class="fas fa-network-wired" style="color: #3b82f6;"></i> Veritabanı Sunucuları & DSN
+                </h4>
+                <div style="background: var(--bg-hover, rgba(0,0,0,0.15)); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.85rem;">
+                    <div><strong>BSCS DSN:</strong> {{ shared_cfg.bscs_dsn }}</div>
+                    <div><strong>CMPDB DSN:</strong> {{ shared_cfg.cmpdb_dsn }}</div>
+                    <div><strong>MERNS DSN:</strong> {{ shared_cfg.merns_dsn }}</div>
+                </div>
+            </div>
+
+            <!-- SSH Bilgileri -->
+            <div class="info-group" style="margin-bottom: 16px;">
+                <h4 style="font-size: 0.92rem; color: var(--text-color); margin-bottom: 8px;">
+                    <i class="fas fa-terminal" style="color: #8b5cf6;"></i> SSH Sunucu Bilgileri (Log Toplama)
+                </h4>
+                <div style="background: var(--bg-hover, rgba(0,0,0,0.15)); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.85rem;">
+                    <div><strong>Host:</strong> {{ shared_cfg.ssh.host }}:{{ shared_cfg.ssh.port }}</div>
+                    <div><strong>Kullanıcı Adı:</strong> {{ shared_cfg.ssh.username }}</div>
+                    <div><strong>Şifre:</strong> {{ shared_cfg.ssh.password }}</div>
+                </div>
+            </div>
+
+            <!-- Sistem URL'leri -->
+            <div class="info-group" style="margin-bottom: 16px;">
+                <h4 style="font-size: 0.92rem; color: var(--text-color); margin-bottom: 8px;">
+                    <i class="fas fa-link" style="color: #10b981;"></i> Sistem URL'leri
+                </h4>
+                <div style="background: var(--bg-hover, rgba(0,0,0,0.15)); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.82rem;">
+                    <div><strong>Opera:</strong> {{ shared_cfg.urls.opera }}</div>
+                    <div><strong>MDM:</strong> {{ shared_cfg.urls.mdm }}</div>
+                    <div><strong>ES:</strong> {{ shared_cfg.urls.es }}</div>
+                    <div><strong>TestPortal:</strong> {{ shared_cfg.urls.testportal }}</div>
+                </div>
+            </div>
+
+            <!-- Ortak Kullanıcılar -->
+            <div class="info-group">
+                <h4 style="font-size: 0.92rem; color: var(--text-color); margin-bottom: 8px;">
+                    <i class="fas fa-users" style="color: #f59e0b;"></i> Ortak Sistem Kullanıcıları
+                </h4>
+                <div style="background: var(--bg-hover, rgba(0,0,0,0.15)); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.85rem;">
+                    <div><strong>MDM/ES Kullanıcı:</strong> {{ shared_cfg.mdm_es_user }} / {{ shared_cfg.mdm_es_pass }}</div>
+                    <div><strong>Opera Kullanıcıları:</strong> 61044774, CC51 (Ortak Şifre: aa1234)</div>
+                </div>
+            </div>
+
+            <!-- Sistem Güncellemesi Kartı -->
+            <div class="info-group" style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                <h4 style="font-size: 0.92rem; color: var(--text-color); margin-bottom: 8px;">
+                    <i class="fas fa-code-branch" style="color: var(--primary);"></i> Sistem Sürümü & Güncelleme
+                </h4>
+                <div style="background: var(--bg-hover, rgba(0,0,0,0.15)); border-radius: 6px; padding: 12px;">
+                    <div style="font-size: 0.85rem; margin-bottom: 10px;">
+                        <strong>Repository:</strong> <a href="https://github.com/Odesyus/WorkAutomation" target="_blank" style="color: var(--primary); text-decoration: none;">GitHub / WorkAutomation</a>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="checkSystemUpdates()" style="width: 100%; justify-content: center;">
+                        <i class="fas fa-sync-alt"></i> GitHub'dan Güncellemeleri Denetle
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Mevcut bireysel bilgileri inputlara yükle
+        document.getElementById('bscs_user').value = "{{ local_cfg.db.bscs.username if local_cfg.db and local_cfg.db.bscs else '' }}";
+        document.getElementById('bscs_pass').value = "{{ local_cfg.db.bscs.password if local_cfg.db and local_cfg.db.bscs else '' }}";
+        document.getElementById('tp_user').value = "{{ local_cfg.testportal.user if local_cfg.testportal else '' }}";
+        document.getElementById('tp_pass').value = "{{ local_cfg.testportal.password if local_cfg.testportal else '' }}";
+    });
+
+    async function saveSettings() {
+        const btn = document.getElementById('btn-save-settings');
+        const statusSpan = document.getElementById('save-status');
+
+        const payload = {
+            db: {
+                bscs: {
+                    username: document.getElementById('bscs_user').value.trim(),
+                    password: document.getElementById('bscs_pass').value.trim()
+                },
+                cmpdb: {
+                    username: document.getElementById('cmpdb_user').value.trim(),
+                    password: document.getElementById('cmpdb_pass').value.trim()
+                },
+                merns: {
+                    username: document.getElementById('merns_user').value.trim(),
+                    password: document.getElementById('merns_pass').value.trim()
+                }
+            },
+            testportal: {
+                user: document.getElementById('tp_user').value.trim(),
+                password: document.getElementById('tp_pass').value.trim()
+            },
+            default_opera_user: document.getElementById('default_opera_user').value
+        };
+
+        statusSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor...';
+        statusSpan.style.color = 'var(--text-muted)';
+        btn.disabled = true;
+
+        try {
+            const res = await apiCall('/api/settings/save', 'POST', payload);
+            if (res.success) {
+                statusSpan.innerHTML = '<i class="fas fa-check-circle"></i> ' + (res.message || 'Ayarlar başarıyla kaydedildi!');
+                statusSpan.style.color = '#10b981';
+                showToast('Bireysel ayarlarınız başarıyla güncellendi.', 'success');
+            } else {
+                statusSpan.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (res.error || 'Hata oluştu.');
+                statusSpan.style.color = '#ef4444';
+                showToast(res.error || 'Ayarlar kaydedilemedi.', 'error');
+            }
+        } catch (err) {
+            statusSpan.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Bağlantı hatası!';
+            statusSpan.style.color = '#ef4444';
+            showToast('Ayarlar kaydedilirken hata oluştu.', 'error');
+        } finally {
+            btn.disabled = false;
+            setTimeout(() => {
+                if (statusSpan.style.color === 'rgb(16, 185, 129)') {
+                    statusSpan.innerHTML = '';
+                }
+            }, 4000);
+        }
+    }
+</script>
+{% endblock %}

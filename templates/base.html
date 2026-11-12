@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Otomasyon Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/corporate.css') }}?v=3">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="theme-modern">
+    <script>document.body.className = 'theme-' + (localStorage.getItem('theme') || 'modern');</script>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <i class="fas fa-rocket"></i>
+            <span>Otomasyon</span>
+        </div>
+        <ul class="nav-links">
+            <li class="{{ 'active' if active_page == 'home' }}">
+                <a href="/"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            </li>
+            <li class="{{ 'active' if active_page == 'opera' }}">
+                <a href="/opera"><i class="fas fa-satellite-dish"></i><span>Opera Aktivasyon</span></a>
+            </li>
+            <li class="nav-group {{ 'open' if active_page in ('iccid', 'tp_users') else 'open' }}">
+                <div class="nav-group-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="nav-group-title"><i class="fas fa-globe"></i><span>TestPortal</span></span>
+                    <i class="fas fa-chevron-down nav-group-arrow"></i>
+                </div>
+                <ul class="nav-sublinks">
+                    <li class="{{ 'active' if active_page == 'iccid' }}">
+                        <a href="/iccid"><i class="fas fa-sim-card"></i><span>ICCID Kontrol</span></a>
+                    </li>
+                    <li class="{{ 'active' if active_page == 'tp_users' }}">
+                        <a href="/testportal-users"><i class="fas fa-users-cog"></i><span>TestPortal User</span></a>
+                    </li>
+                </ul>
+            </li>
+            <li class="{{ 'active' if active_page == 'mdm' }}">
+                <a href="/mdm-es"><i class="fas fa-mobile-alt"></i><span>MDM/ES Kayıt</span></a>
+            </li>
+            <li class="{{ 'active' if active_page == 'settings' }}">
+                <a href="/settings"><i class="fas fa-cog"></i><span>Ayarlar</span></a>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <button id="btn-check-update" class="theme-btn" onclick="checkSystemUpdates()" style="margin-bottom: 8px;" title="GitHub Güncellemelerini Denetle">
+                <i class="fas fa-sync-alt" id="update-icon"></i>
+                <span id="update-btn-label">Güncellemeleri Denetle</span>
+            </button>
+            <button id="theme-toggle" class="theme-btn">
+                <i class="fas fa-moon"></i>
+                <span>Tema Değiştir</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-btn" id="mobile-menu-btn">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-bar">
+            <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="user-info" style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-user-circle" style="font-size: 1.25rem; color: var(--primary, #00d4ff);"></i>
+                    <span style="font-weight: 600; font-size: 0.92rem;">{{ current_user.name or current_user.user or 'Operatör' }}</span>
+                </div>
+                <a href="/logout" class="btn btn-ghost btn-sm" title="Oturumu Kapat" style="padding: 4px 8px; border-radius: 6px; font-size: 0.82rem; color: #f87171; display: inline-flex; align-items: center; gap: 4px; text-decoration: none;">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Çıkış</span>
+                </a>
+            </div>
+        </header>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Güncelleme Modalı -->
+    <div id="update-modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
+        <div class="card" style="width: 90%; max-width: 520px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: 0; overflow: hidden; box-shadow: var(--shadow);">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--surface-border);">
+                <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-cloud-download-alt" style="color: var(--primary);"></i> Sistem Güncellemesi
+                </h3>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="closeUpdateModal()" style="font-size: 1.3rem; line-height: 1; padding: 2px 8px; cursor: pointer;">&times;</button>
+            </div>
+            <div class="card-body" id="update-modal-body" style="padding: 22px;"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

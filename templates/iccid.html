@@ -1,0 +1,665 @@
+{% extends "base.html" %}
+
+{% block title %}ICCID Kontrol - Otomasyon{% endblock %}
+{% block page_title %}ICCID Kontrol{% endblock %}
+
+{% block content %}
+<!-- Top Action Bar -->
+<div class="card action-bar-card">
+    <div class="card-body action-bar">
+        <div class="action-bar-left">
+            <h3><i class="fas fa-sim-card"></i> ICCID Listesi</h3>
+            <span class="subtitle" id="iccid-count">Henüz veri yüklenmedi</span>
+        </div>
+        <div class="action-bar-right">
+            <!-- 0. Arama Çubuğu -->
+            <div style="position: relative; display: flex; align-items: center;">
+                <i class="fas fa-search" style="position: absolute; left: 11px; color: var(--text-muted); font-size: 13px; pointer-events: none;"></i>
+                <input type="text" id="iccid-search-input" oninput="onSearchInput()" placeholder="MSISDN, IMSI, ICCID ara..." style="padding-left: 32px; padding-right: 28px; width: 215px; height: 38px;">
+                <button type="button" id="btn-clear-search" onclick="clearSearchInput()" title="Aramayı Temizle" style="display: none; position: absolute; right: 6px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- 1. Çoklu Seçimli Kullanıcı Filtresi -->
+            <div class="multi-select" id="iccid-user-multiselect">
+                <button type="button" class="multi-select-btn" onclick="toggleIccidMultiSelect(event)">
+                    <span><i class="fas fa-users" style="color:var(--primary);margin-right:6px;"></i><span id="iccid-ms-label">Kullanıcı Seçin...</span></span>
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="multi-select-menu" onclick="event.stopPropagation()">
+                    <div class="multi-select-actions">
+                        <a onclick="selectAllIccidUsers(true)">Tümünü Seç</a>
+                        <a onclick="selectAllIccidUsers(false)">Temizle</a>
+                    </div>
+                    <div id="iccid-ms-options">
+                        {% for u in tp_users %}
+                        <label class="multi-select-item">
+                            <input type="checkbox" class="iccid-user-cb" value="{{ u.id }}" data-name="{{ u.name }}" onchange="onIccidUserSelectionChange()">
+                            <span><strong>{{ u.name }}</strong> <span class="text-muted">({{ u.user }})</span></span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Sanal / Fiziksel / Tümü Filtresi -->
+            <select id="filter-type" onchange="onFilterChange()" title="Hat Tipi Filtresi" style="width: auto; min-width: 155px;">
+                <option value="all">Hat Tipi: Tümü</option>
+                <option value="Sanal">Sanal Hatlar</option>
+                <option value="Fiziksel">Fiziksel Hatlar</option>
+            </select>
+
+            <!-- 2.1 Pos / Pre / Tümü Filtresi -->
+            <select id="filter-pospre" onchange="onFilterChange()" title="Ödeme Tipi (Pos/Pre) Filtresi" style="width: auto; min-width: 140px;">
+                <option value="all">Pos/Pre: Tümü</option>
+                <option value="Pos">Faturalı (Pos)</option>
+                <option value="Pre">Faturasız (Pre)</option>
+            </select>
+
+            <!-- 3. Temiz / Kirli / Tümü Filtresi -->
+            <select id="filter-status" onchange="onFilterChange()" title="Durum Filtresi" style="width: auto; min-width: 150px;">
+                <option value="all">Durum: Tümü</option>
+                <option value="clean">Sadece Temiz</option>
+                <option value="dirty">Sadece Kirli</option>
+                <option value="pending">Kontrol Edilmemiş</option>
+            </select>
+
+            <!-- 4. MSISDN Sıralama (Küçükten Büyüğe / Büyükten Küçüğe) -->
+            <select id="sort-msisdn" onchange="onSortChange()" title="MSISDN Sıralama" style="width: auto; min-width: 195px;">
+                <option value="asc">MSISDN: Küçükten Büyüğe ↑</option>
+                <option value="desc">MSISDN: Büyükten Küçüğe ↓</option>
+            </select>
+
+            <button class="btn btn-primary" id="btn-fetch-iccids" onclick="fetchICCIDs()">
+                <i class="fas fa-sync-alt"></i> TestPortal'dan Çek
+            </button>
+
+            <button class="btn btn-secondary" id="btn-check-selected" onclick="checkSelectedICCIDs()" disabled title="Tablodan seçtiğiniz hatları 5'li paralel olarak kontrol eder">
+                <i class="fas fa-bolt"></i> <span id="btn-check-selected-label">Seçilenleri Kontrol Et (0)</span>
+            </button>
+
+            <button class="btn btn-warning" id="btn-clean-selected" onclick="cleanSelectedICCIDs()" disabled style="background: #f59e0b; color: #fff; border: none;" title="Tablodan seçtiğiniz hatları TestPortal'da temizliğe gönderir">
+                <i class="fas fa-broom"></i> <span id="btn-clean-selected-label">Temizliğe Gönder (0)</span>
+            </button>
+
+            <a href="/testportal-users" class="btn btn-secondary btn-sm" title="Kullanıcı Ekle / Çıkar">
+                <i class="fas fa-users-cog"></i> User Yönetimi
+            </a>
+            <div class="loading-spinner" id="loading-spinner" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Yükleniyor...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Checking Progress (shown during bulk check) -->
+<div class="card" id="bulk-progress-card" style="display: none;">
+    <div class="card-body">
+        <div class="progress-container" style="margin-bottom: 0;">
+            <div class="progress-info">
+                <span id="bulk-progress-label">Paralel kontrol (5'li): 0 / 0</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="bulk-progress-fill" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Table -->
+<div class="card table-card" id="results-section" style="display: none;">
+    <div class="card-body table-responsive">
+        <table class="data-table" id="iccid-table">
+            <thead>
+                <tr>
+                    <th width="42" style="text-align: center;">
+                        <input type="checkbox" id="select-all-rows" onchange="toggleSelectAllRows(this.checked)" title="Listelenenlerin Tümünü Seç / Kaldır" style="width: 16px; height: 16px; cursor: pointer;">
+                    </th>
+                    <th width="45">#</th>
+                    <th width="135">Kullanıcı</th>
+                    <th width="105">Hat Tipi</th>
+                    <th width="85">Pos/Pre</th>
+                    <th onclick="toggleMsisdnSort()" style="cursor: pointer; user-select: none;" title="MSISDN Sıralamasını Değiştir (Küçükten Büyüğe / Büyükten Küçüğe)">
+                        MSISDN <i id="msisdn-sort-icon" class="fas fa-sort-numeric-down" style="margin-left: 4px; color: var(--primary);"></i>
+                    </th>
+                    <th>IMSI</th>
+                    <th>ICCID</th>
+                    <th width="120">Durum</th>
+                    <th>Detay</th>
+                    <th width="195">İşlem</th>
+                </tr>
+            </thead>
+            <tbody id="iccid-tbody">
+                <!-- Rows populated by JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let iccidData = [];
+    let allLoadedLines = [];
+    let selectedMsisdns = new Set();
+    let bulkChecking = false;
+    let bulkCleaning = false;
+    const PARALLEL_LIMIT = 5; // Aynı anda 5'li paralel kontrol
+    const presetLines = {{ (test_lines or []) | tojson }};
+
+    function getSavedUserIds() {
+        try {
+            const raw = localStorage.getItem('selected_tp_users');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed.map(String);
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function saveSelectedUserIds(ids) {
+        localStorage.setItem('selected_tp_users', JSON.stringify(ids.map(String)));
+    }
+
+    function toggleIccidMultiSelect(e) {
+        e.stopPropagation();
+        document.getElementById('iccid-user-multiselect').classList.toggle('open');
+    }
+
+    document.addEventListener('click', () => {
+        document.getElementById('iccid-user-multiselect')?.classList.remove('open');
+    });
+
+    function updateIccidMultiLabel() {
+        const cbs = [...document.querySelectorAll('.iccid-user-cb')];
+        const checked = cbs.filter(c => c.checked);
+        const lbl = document.getElementById('iccid-ms-label');
+        if (checked.length === 0) {
+            lbl.textContent = 'Kullanıcı Seçilmedi';
+        } else if (checked.length === cbs.length) {
+            lbl.textContent = `Tümü (${checked.map(c => c.dataset.name).join(', ')})`;
+        } else {
+            lbl.textContent = checked.map(c => c.dataset.name).join(', ');
+        }
+    }
+
+    function selectAllIccidUsers(state) {
+        document.querySelectorAll('.iccid-user-cb').forEach(cb => { cb.checked = state; });
+        onIccidUserSelectionChange();
+    }
+
+    function onFilterChange() {
+        localStorage.setItem('iccid_filter_type', document.getElementById('filter-type').value);
+        localStorage.setItem('iccid_filter_status', document.getElementById('filter-status').value);
+        applyUserFilter();
+    }
+
+    function onSortChange() {
+        const val = document.getElementById('sort-msisdn').value;
+        localStorage.setItem('iccid_sort_msisdn', val);
+        updateSortIcon(val);
+        applyUserFilter();
+    }
+
+    function toggleMsisdnSort() {
+        const sel = document.getElementById('sort-msisdn');
+        sel.value = sel.value === 'asc' ? 'desc' : 'asc';
+        onSortChange();
+    }
+
+    function updateSortIcon(sortDir) {
+        const icon = document.getElementById('msisdn-sort-icon');
+        if (!icon) return;
+        icon.className = sortDir === 'desc' ? 'fas fa-sort-numeric-up-alt' : 'fas fa-sort-numeric-down';
+    }
+
+    function onSearchInput() {
+        const q = document.getElementById('iccid-search-input').value;
+        const clearBtn = document.getElementById('btn-clear-search');
+        if (clearBtn) clearBtn.style.display = q.length > 0 ? 'block' : 'none';
+        applyUserFilter();
+    }
+
+    function clearSearchInput() {
+        const inp = document.getElementById('iccid-search-input');
+        if (inp) inp.value = '';
+        onSearchInput();
+    }
+
+    function getVisibleSelectedMsisdns() {
+        const visibleSet = new Set(iccidData.map(x => String(x.msisdn)));
+        return [...selectedMsisdns].filter(m => visibleSet.has(String(m)));
+    }
+
+    function updateSelectionUI() {
+        const visibleSelected = getVisibleSelectedMsisdns();
+        const count = visibleSelected.length;
+
+        const checkBtn = document.getElementById('btn-check-selected');
+        const checkLbl = document.getElementById('btn-check-selected-label');
+        const cleanBtn = document.getElementById('btn-clean-selected');
+        const cleanLbl = document.getElementById('btn-clean-selected-label');
+
+        if (checkLbl) checkLbl.textContent = `Seçilenleri Kontrol Et (${count}) [5x]`;
+        if (cleanLbl) cleanLbl.textContent = `Temizliğe Gönder (${count})`;
+
+        if (checkBtn) checkBtn.disabled = count === 0 || bulkChecking;
+        if (cleanBtn) cleanBtn.disabled = count === 0 || bulkCleaning;
+
+        const selectAllCb = document.getElementById('select-all-rows');
+        if (selectAllCb) {
+            selectAllCb.checked = iccidData.length > 0 && count === iccidData.length;
+            selectAllCb.indeterminate = count > 0 && count < iccidData.length;
+        }
+
+        const cleanCount = iccidData.filter(x => x.status === 'clean').length;
+        const dirtyCount = iccidData.filter(x => x.status === 'dirty').length;
+        document.getElementById('iccid-count').textContent =
+            `${iccidData.length} kayıt listeleniyor (Seçili: ${count} | Temiz: ${cleanCount}, Kirli: ${dirtyCount})`;
+    }
+
+    function onRowSelectChange(msisdn, isChecked) {
+        const m = String(msisdn);
+        if (isChecked) {
+            selectedMsisdns.add(m);
+        } else {
+            selectedMsisdns.delete(m);
+        }
+        const row = document.getElementById('row-' + m);
+        if (row) {
+            row.style.outline = isChecked ? '1px solid var(--primary)' : '';
+        }
+        updateSelectionUI();
+    }
+
+    function toggleSelectAllRows(isChecked) {
+        iccidData.forEach(item => {
+            const m = String(item.msisdn);
+            if (isChecked) {
+                selectedMsisdns.add(m);
+            } else {
+                selectedMsisdns.delete(m);
+            }
+        });
+        document.querySelectorAll('.row-select-cb').forEach(cb => {
+            cb.checked = isChecked;
+            const row = document.getElementById('row-' + cb.value);
+            if (row) row.style.outline = isChecked ? '1px solid var(--primary)' : '';
+        });
+        updateSelectionUI();
+    }
+
+    function applyUserFilter() {
+        const checkedNames = [...document.querySelectorAll('.iccid-user-cb:checked')].map(cb => cb.dataset.name);
+        const typeFilter = document.getElementById('filter-type').value;
+        const pospreFilter = document.getElementById('filter-pospre')?.value || 'all';
+        const statusFilter = document.getElementById('filter-status').value;
+        const sortDir = document.getElementById('sort-msisdn')?.value || 'asc';
+        const searchQuery = (document.getElementById('iccid-search-input')?.value || '').trim().toLowerCase();
+
+        iccidData = allLoadedLines.filter(item => {
+            if (!checkedNames.includes(item.owner)) return false;
+            if (typeFilter !== 'all' && item.type !== typeFilter) return false;
+            if (pospreFilter !== 'all' && (item.pos_pre || '-') !== pospreFilter) return false;
+            if (statusFilter !== 'all') {
+                const st = item.status || 'pending';
+                if (statusFilter !== st) return false;
+            }
+            if (searchQuery) {
+                const haystack = [
+                    item.msisdn || '',
+                    item.imsi || '',
+                    item.iccid || '',
+                    item.owner || '',
+                    item.type || '',
+                    item.pos_pre || ''
+                ].join(' ').toLowerCase();
+                if (!haystack.includes(searchQuery)) return false;
+            }
+            return true;
+        });
+
+        // MSISDN'e göre sayısal sıralama (Küçükten Büyüğe / Büyükten Küçüğe)
+        iccidData.sort((a, b) => {
+            const ma = String(a.msisdn || '').trim();
+            const mb = String(b.msisdn || '').trim();
+            const cmp = ma.localeCompare(mb, undefined, { numeric: true });
+            return sortDir === 'desc' ? -cmp : cmp;
+        });
+
+        renderTable(iccidData);
+        document.getElementById('results-section').style.display = 'block';
+        updateSelectionUI();
+    }
+
+    function onIccidUserSelectionChange() {
+        const checkedIds = [...document.querySelectorAll('.iccid-user-cb:checked')].map(cb => cb.value);
+        saveSelectedUserIds(checkedIds);
+        updateIccidMultiLabel();
+        applyUserFilter();
+    }
+
+    async function fetchICCIDs() {
+        const checkedIds = [...document.querySelectorAll('.iccid-user-cb:checked')].map(cb => parseInt(cb.value, 10));
+        if (!checkedIds.length) {
+            return showToast('Lütfen önce en az bir kullanıcı seçin.', 'warning');
+        }
+
+        const btn = document.getElementById('btn-fetch-iccids');
+        const spinner = document.getElementById('loading-spinner');
+
+        setLoading(btn, true, 'Çekiliyor...');
+        spinner.style.display = 'flex';
+
+        try {
+            const result = await apiCall('/api/iccid/fetch', 'POST', { user_ids: checkedIds });
+
+            if (result.success && result.data) {
+                if (result.all_lines) {
+                    allLoadedLines = result.all_lines;
+                } else {
+                    const checkedNames = [...document.querySelectorAll('.iccid-user-cb:checked')].map(cb => cb.dataset.name);
+                    allLoadedLines = allLoadedLines.filter(item => !checkedNames.includes(item.owner)).concat(result.data);
+                }
+                applyUserFilter();
+                showToast(result.data.length + ' ICCID başarıyla çekildi ve kaydedildi.', 'success');
+            } else {
+                showToast(result.error || 'ICCID verileri çekilemedi.', 'error');
+            }
+        } catch (e) {
+            showToast('Bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            setLoading(btn, false);
+            spinner.style.display = 'none';
+        }
+    }
+
+    function buildStatusBadgeHtml(status, cleanedAt, nextCheckAt) {
+        let html = '';
+        if (status === 'clean') {
+            html = '<span class="badge badge-success"><i class="fas fa-check"></i> Temiz</span>';
+        } else if (status === 'dirty') {
+            html = '<span class="badge badge-danger"><i class="fas fa-times"></i> Kirli</span>';
+        } else if (status === 'unknown') {
+            html = '<span class="badge badge-warning"><i class="fas fa-question"></i> Belirsiz</span>';
+        } else {
+            html = '<span class="badge badge-pending">Beklemede</span>';
+        }
+
+        if (nextCheckAt && status !== 'clean') {
+            const timeStr = nextCheckAt.length >= 16 ? nextCheckAt.substring(11, 16) : nextCheckAt;
+            html += `<div style="margin-top:4px;"><span class="badge badge-warning" title="TestPortal temizlik job'ı sonrası otomatik kontrol: ${escapeHtml(nextCheckAt)}" style="font-size:10px;"><i class="fas fa-broom"></i> Temizlikte (Kontrol: ${escapeHtml(timeStr)})</span></div>`;
+        } else if (cleanedAt && status !== 'clean') {
+            html += `<div style="margin-top:4px;"><span class="badge badge-warning" title="Temizleme talebi gönderildi: ${escapeHtml(cleanedAt)}" style="font-size:10px;"><i class="fas fa-broom"></i> Temizlikte</span></div>`;
+        }
+        return html;
+    }
+
+    function buildDetailsHtml(details) {
+        if (!details) return '<span class="text-muted">—</span>';
+        let detailHtml = '<div class="db-badges">';
+        ['BSCS', 'OCS', 'OPERA', 'HLR', 'CUDB', 'SIEBEL'].forEach(db => {
+            const v = details[db];
+            if (v === 'db_error') {
+                detailHtml += `<span class="db-badge db-badge-warning" title="${db}: DB'de sıkıntı var (RESP 1001;)">${db} (DB Hatası)</span>`;
+            } else {
+                const cls = v === true ? 'db-badge-active' : (v === false ? 'db-badge-inactive' : 'db-badge-unknown');
+                const tip = v === true ? 'Veri var (Kirli)' : (v === false ? 'Temiz' : 'Alan bulunamadı');
+                detailHtml += `<span class="db-badge ${cls}" title="${db}: ${tip}">${db}</span>`;
+            }
+        });
+        detailHtml += '</div>';
+        return detailHtml;
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('iccid-tbody');
+        tbody.innerHTML = '';
+
+        data.forEach((item, index) => {
+            const msisdnStr = String(item.msisdn || '');
+            const isSelected = selectedMsisdns.has(msisdnStr);
+            const row = document.createElement('tr');
+            row.id = 'row-' + msisdnStr;
+            if (item.status === 'clean') row.classList.add('row-clean');
+            if (item.status === 'dirty') row.classList.add('row-dirty');
+            if (isSelected) row.style.outline = '1px solid var(--primary)';
+
+            const hatTipi = item.type || '-';
+            const tipBadgeClass = hatTipi === 'Sanal' ? 'badge-warning' : (hatTipi === 'Fiziksel' ? 'badge-success' : 'badge-pending');
+            const tipIcon = hatTipi === 'Sanal' ? 'fa-cloud' : 'fa-microchip';
+
+            const posPre = item.pos_pre || '-';
+            const posPreBadge = posPre === 'Pos' ? 'background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35);' :
+                               (posPre === 'Pre' ? 'background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35);' : '');
+
+            row.innerHTML = `
+                <td style="text-align: center;">
+                    <input type="checkbox" class="row-select-cb" value="${escapeHtml(msisdnStr)}" ${isSelected ? 'checked' : ''} onchange="onRowSelectChange('${escapeHtml(msisdnStr)}', this.checked)" style="width: 16px; height: 16px; cursor: pointer;">
+                </td>
+                <td>${index + 1}</td>
+                <td><span class="badge badge-info">${escapeHtml(item.owner || '-')}</span></td>
+                <td><span class="badge ${tipBadgeClass}"><i class="fas ${tipIcon}"></i> ${escapeHtml(hatTipi)}</span></td>
+                <td><span class="badge" style="${posPreBadge}">${escapeHtml(posPre)}</span></td>
+                <td><code>${escapeHtml(msisdnStr || '-')}</code></td>
+                <td><code>${escapeHtml(item.imsi || '-')}</code></td>
+                <td><code><strong>${escapeHtml(item.iccid || '-')}</strong></code></td>
+                <td id="status-${msisdnStr}">
+                    ${buildStatusBadgeHtml(item.status, item.cleaned_at, item.next_check_at)}
+                </td>
+                <td id="detail-${msisdnStr}" class="detail-cell">
+                    ${buildDetailsHtml(item.details)}
+                </td>
+                <td>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-secondary btn-sm btn-check-row" id="btn-check-${msisdnStr}" onclick="checkICCID('${msisdnStr}')" title="Bu hattı kontrol et">
+                            <i class="fas fa-search"></i> Kontrol
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="btn-clean-${msisdnStr}" onclick="cleanSingleICCID('${msisdnStr}')" title="Bu hattı TestPortal'da temizliğe gönder" style="color: #f59e0b;">
+                            <i class="fas fa-broom"></i> Temizle
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    async function checkICCID(msisdn) {
+        const btn = document.getElementById('btn-check-' + msisdn);
+        const statusCell = document.getElementById('status-' + msisdn);
+        const detailCell = document.getElementById('detail-' + msisdn);
+        const row = document.getElementById('row-' + msisdn);
+
+        if (btn) setLoading(btn, true);
+        if (statusCell) {
+            statusCell.innerHTML = '<span class="badge badge-info"><i class="fas fa-spinner fa-spin"></i> Kontrol ediliyor</span>';
+        }
+
+        try {
+            const result = await apiCall('/api/iccid/check', 'POST', { msisdn });
+
+            if (result.success) {
+                const st = result.data.status;
+                const dbs = result.data.details || {};
+                let cleanedAt = null;
+                let nextCheckAt = null;
+
+                allLoadedLines.forEach(item => {
+                    if (String(item.msisdn) === String(msisdn)) {
+                        item.status = st;
+                        item.details = dbs;
+                        if (st === 'clean') {
+                            delete item.next_check_at;
+                        }
+                        cleanedAt = item.cleaned_at;
+                        nextCheckAt = item.next_check_at;
+                    }
+                });
+
+                if (row) {
+                    row.classList.remove('row-clean', 'row-dirty');
+                    if (st === 'clean') row.classList.add('row-clean');
+                    if (st === 'dirty') row.classList.add('row-dirty');
+                }
+                if (statusCell) statusCell.innerHTML = buildStatusBadgeHtml(st, cleanedAt, nextCheckAt);
+                if (detailCell) detailCell.innerHTML = buildDetailsHtml(dbs);
+
+                updateSelectionUI();
+            } else {
+                if (statusCell) statusCell.innerHTML = '<span class="badge badge-warning"><i class="fas fa-exclamation"></i> Hata</span>';
+                if (detailCell) detailCell.innerHTML = '<span class="text-danger">' + escapeHtml(result.error || 'Kontrol hatası') + '</span>';
+            }
+        } catch (e) {
+            if (statusCell) statusCell.innerHTML = '<span class="badge badge-warning"><i class="fas fa-exclamation"></i> Hata</span>';
+            if (detailCell) detailCell.innerHTML = '<span class="text-danger">Bağlantı hatası</span>';
+        } finally {
+            if (btn) setLoading(btn, false);
+        }
+    }
+
+    async function checkSelectedICCIDs() {
+        const queue = getVisibleSelectedMsisdns();
+        if (bulkChecking) return;
+        if (!queue.length) {
+            return showToast('Lütfen önce tablodan kontrol edilecek hatları seçin.', 'warning');
+        }
+        bulkChecking = true;
+
+        const checkSelBtn = document.getElementById('btn-check-selected');
+        setLoading(checkSelBtn, true, '5x Kontrol Ediliyor...');
+
+        const progressCard = document.getElementById('bulk-progress-card');
+        const progressFill = document.getElementById('bulk-progress-fill');
+        const progressLabel = document.getElementById('bulk-progress-label');
+        progressCard.style.display = 'block';
+
+        const total = queue.length;
+        let completed = 0;
+
+        progressLabel.textContent = `Seçili hatlar kontrol ediliyor (${PARALLEL_LIMIT}'li paralel): 0 / ${total}`;
+        progressFill.style.width = '0%';
+
+        async function worker() {
+            while (queue.length > 0) {
+                const msisdn = queue.shift();
+                if (!msisdn) break;
+                await checkICCID(msisdn);
+                completed++;
+                progressLabel.textContent = `Seçili hatlar kontrol ediliyor (${PARALLEL_LIMIT}'li paralel): ${completed} / ${total}`;
+                progressFill.style.width = ((completed / total) * 100) + '%';
+            }
+        }
+
+        const workerCount = Math.min(PARALLEL_LIMIT, total);
+        const workers = [];
+        for (let i = 0; i < workerCount; i++) {
+            workers.push(worker());
+        }
+        await Promise.all(workers);
+
+        progressLabel.textContent = `Seçili hatların kontrolü tamamlandı: ${total} / ${total}`;
+        showToast(`Seçilen ${total} hattın kontrolü tamamlandı!`, 'success');
+        bulkChecking = false;
+        setLoading(checkSelBtn, false);
+        applyUserFilter();
+    }
+
+    async function cleanSingleICCID(msisdn) {
+        await sendICCIDsToClean([String(msisdn)], document.getElementById('btn-clean-' + msisdn));
+    }
+
+    async function cleanSelectedICCIDs() {
+        const selected = getVisibleSelectedMsisdns();
+        if (!selected.length) {
+            return showToast('Lütfen önce temizliğe gönderilecek hatları seçin.', 'warning');
+        }
+        await sendICCIDsToClean(selected, document.getElementById('btn-clean-selected'));
+    }
+
+    async function sendICCIDsToClean(msisdnList, triggerBtn) {
+        if (bulkCleaning || !msisdnList.length) return;
+        bulkCleaning = true;
+        updateSelectionUI();
+
+        if (triggerBtn) setLoading(triggerBtn, true, 'Gönderiliyor...');
+        showToast(`${msisdnList.length} hat TestPortal'da temizliğe gönderiliyor...`, 'info');
+
+        try {
+            const res = await apiCall('/api/iccid/clean', 'POST', { msisdns: msisdnList });
+            if (res.success && res.data) {
+                const cleaned = res.data.cleaned || [];
+                const notFound = res.data.not_found || [];
+                const nowStr = new Date().toLocaleString('tr-TR');
+
+                allLoadedLines.forEach(item => {
+                    if (cleaned.includes(String(item.msisdn))) {
+                        item.cleaned_at = nowStr;
+                    }
+                });
+
+                await refreshCachedLinesSilent();
+                let msg = `${cleaned.length} hat başarıyla temizliğe gönderildi!`;
+                if (notFound.length > 0) {
+                    msg += ` (Bulunamayan: ${notFound.join(', ')})`;
+                }
+                showToast(msg, 'success');
+            } else {
+                showToast(res.error || 'Temizleme talebi gönderilemedi.', 'error');
+            }
+        } catch (e) {
+            showToast('Bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            bulkCleaning = false;
+            if (triggerBtn) setLoading(triggerBtn, false);
+            updateSelectionUI();
+        }
+    }
+
+    async function refreshCachedLinesSilent() {
+        try {
+            const res = await apiCall('/api/iccid/list', 'GET');
+            if (res.success && Array.isArray(res.data)) {
+                allLoadedLines = res.data;
+                applyUserFilter();
+            }
+        } catch (e) {
+            // Sessizce geç
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        allLoadedLines = [...presetLines];
+        const saved = getSavedUserIds();
+        const cbs = [...document.querySelectorAll('.iccid-user-cb')];
+        cbs.forEach(cb => {
+            cb.checked = saved === null ? true : saved.includes(cb.value);
+        });
+
+        const savedType = localStorage.getItem('iccid_filter_type');
+        if (savedType) document.getElementById('filter-type').value = savedType;
+
+        const savedStatus = localStorage.getItem('iccid_filter_status');
+        if (savedStatus) document.getElementById('filter-status').value = savedStatus;
+
+        const savedSort = localStorage.getItem('iccid_sort_msisdn') || 'asc';
+        if (document.getElementById('sort-msisdn')) {
+            document.getElementById('sort-msisdn').value = savedSort;
+            updateSortIcon(savedSort);
+        }
+
+        updateIccidMultiLabel();
+        applyUserFilter();
+
+        // Temizlik kontrol durumlarını (job sonrası durumları) arka planda periyodik olarak canlı güncelle
+        setInterval(() => {
+            if (!bulkChecking && !bulkCleaning) {
+                refreshCachedLinesSilent();
+            }
+        }, 20000);
+    });
+</script>
+{% endblock %}

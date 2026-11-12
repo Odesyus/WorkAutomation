@@ -1,0 +1,100 @@
+/* =========================================================
+   modern.css — Modern koyu tema (glassmorphism, cyan/mor vurgular)
+   ========================================================= */
+body.theme-modern {
+    --bg: radial-gradient(ellipse at top left, rgba(124, 58, 237, .18), transparent 50%),
+          radial-gradient(ellipse at bottom right, rgba(0, 212, 255, .12), transparent 50%),
+          linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
+    --bg-sidebar: rgba(15, 15, 35, .92);
+    --topbar-bg: rgba(15, 15, 35, .6);
+    --surface: rgba(255, 255, 255, .045);
+    --surface-hover: rgba(255, 255, 255, .07);
+    --surface-border: rgba(255, 255, 255, .09);
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+
+    --primary: #00d4ff;
+    --primary-soft: rgba(0, 212, 255, .12);
+    --purple: #a78bfa;
+    --purple-soft: rgba(124, 58, 237, .18);
+    --success: #10b981;
+    --success-soft: rgba(16, 185, 129, .14);
+    --danger: #ef4444;
+    --danger-soft: rgba(239, 68, 68, .14);
+    --warning: #f59e0b;
+    --warning-soft: rgba(245, 158, 11, .12);
+
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 8px 32px rgba(0, 0, 0, .25);
+
+    --input-bg: rgba(255, 255, 255, .05);
+    --input-border: rgba(255, 255, 255, .1);
+    --focus-ring: 0 0 0 3px rgba(0, 212, 255, .2), 0 0 20px rgba(0, 212, 255, .15);
+
+    --btn-primary-bg: linear-gradient(135deg, #00d4ff, #7c3aed);
+    --btn-primary-hover: linear-gradient(135deg, #22dcff, #8b5cf6);
+    --btn-primary-shadow: 0 6px 24px rgba(0, 212, 255, .35);
+
+    --nav-active-bg: linear-gradient(90deg, rgba(0, 212, 255, .14), transparent);
+    --table-head: rgba(0, 212, 255, .06);
+    --row-stripe: rgba(255, 255, 255, .015);
+    --row-hover: rgba(255, 255, 255, .04);
+    --progress-bg: linear-gradient(90deg, #00d4ff, #7c3aed, #00d4ff);
+
+    --log-bg: rgba(0, 0, 0, .45);
+    --log-header-bg: rgba(0, 0, 0, .6);
+    --log-text: #a5f3fc;
+    --log-muted: #64748b;
+
+    --welcome-bg: linear-gradient(135deg, rgba(0, 212, 255, .12), rgba(124, 58, 237, .14));
+    --card-hover-transform: translateY(-4px) scale(1.01);
+    --card-hover-shadow: 0 12px 40px rgba(0, 212, 255, .18);
+    --toast-bg: rgba(26, 26, 62, .97);
+    --scrollbar: rgba(255, 255, 255, .15);
+
+    background-attachment: fixed;
+}
+
+/* Cam efekti */
+.theme-modern .card,
+.theme-modern .module-card,
+.theme-modern .welcome-card,
+.theme-modern .sidebar,
+.theme-modern .toast {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.theme-modern .card:hover { border-color: rgba(0, 212, 255, .2); }
+
+.theme-modern .sidebar-header span {
+    background: linear-gradient(135deg, #00d4ff, #a78bfa);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.theme-modern .top-bar h1 {
+    background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Parlayan rozetler */
+.theme-modern .badge-success { box-shadow: 0 0 12px rgba(16, 185, 129, .25); }
+.theme-modern .badge-danger  { box-shadow: 0 0 12px rgba(239, 68, 68, .25); }
+.theme-modern .db-badge-active { box-shadow: 0 0 8px rgba(239, 68, 68, .3); }
+
+/* Akan ilerleme çubuğu */
+.theme-modern .progress-fill {
+    background-size: 200% 100%;
+    animation: modern-flow 2s linear infinite;
+    box-shadow: 0 0 12px rgba(0, 212, 255, .5);
+}
+@keyframes modern-flow { from { background-position: 0 0; } to { background-position: 200% 0; } }
+
+.theme-modern .module-icon { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.theme-modern .welcome-icon i { filter: drop-shadow(0 0 16px rgba(0, 212, 255, .5)); }
+
