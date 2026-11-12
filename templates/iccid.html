@@ -71,10 +71,6 @@
                 <option value="desc">MSISDN: Büyükten Küçüğe ↓</option>
             </select>
 
-            <button class="btn btn-primary" id="btn-fetch-iccids" onclick="fetchICCIDs()">
-                <i class="fas fa-sync-alt"></i> TestPortal'dan Çek
-            </button>
-
             <button class="btn btn-secondary" id="btn-check-selected" onclick="checkSelectedICCIDs()" disabled title="Tablodan seçtiğiniz hatları 5'li paralel olarak kontrol eder">
                 <i class="fas fa-bolt"></i> <span id="btn-check-selected-label">Seçilenleri Kontrol Et (0)</span>
             </button>
@@ -351,7 +347,7 @@
         const btn = document.getElementById('btn-fetch-iccids');
         const spinner = document.getElementById('loading-spinner');
 
-        setLoading(btn, true, 'Çekiliyor...');
+        if (btn) setLoading(btn, true, 'Çekiliyor...');
         spinner.style.display = 'flex';
 
         try {
@@ -372,7 +368,7 @@
         } catch (e) {
             showToast('Bağlantı hatası: ' + e.message, 'error');
         } finally {
-            setLoading(btn, false);
+            if (btn) setLoading(btn, false);
             spinner.style.display = 'none';
         }
     }
