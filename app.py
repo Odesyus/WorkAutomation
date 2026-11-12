@@ -62,15 +62,33 @@ def body():
 
 def _get_tp_users_view():
     import ICCID as ICCID_Func
-    return [
-        {
+    cached_lines = iccid_module.load_cached_lines()
+    users_view = []
+    for uid, u in ICCID_Func.load_users().items():
+        user_name = str(u.get('Name', '')).strip().lower()
+        sicil = str(u.get('User', '')).strip().lower()
+
+        # Bu kullanıcının hatlarını tespit et (İsim veya Sicil eşleşmesi)
+        user_lines = []
+        for l in cached_lines:
+            owner = str(l.get('owner', '')).strip().lower()
+            if owner == user_name or (sicil and sicil in owner) or (user_name and user_name in owner):
+                user_lines.append(l)
+
+        sanal_count = sum(1 for l in user_lines if 'sanal' in str(l.get('type', '')).lower())
+        fiziksel_count = sum(1 for l in user_lines if 'fizik' in str(l.get('type', '')).lower())
+
+        users_view.append({
             'id': uid,
             'name': u['Name'],
             'user': u['User'],
             'has_credentials': bool(u.get('User') and u.get('Password')),
-        }
-        for uid, u in ICCID_Func.load_users().items()
-    ]
+            'total_lines': len(user_lines),
+            'sanal_count': sanal_count,
+            'fiziksel_count': fiziksel_count,
+            'line_summary': f"{len(user_lines)} Data ({sanal_count} Sanal, {fiziksel_count} Fiziksel)" if user_lines else "0 Data",
+        })
+    return users_view
 
 
 # ----------------------------- Oturum / Kimlik Doğrulama -----------------------------
@@ -372,8 +390,17 @@ def api_users_add():
             return fail(auth_res.get('error', 'TestPortal girişi doğrulanamadı. Sicil veya şifre hatalı.'))
         name = auth_res.get('name') or domain_user
 
-    ICCID_Func.add_user(name, domain_user, password)
-    return ok(_get_tp_users_view(), message=f'{name} başarıyla eklendi.')
+    new_item = ICCID_Func.add_user(name, domain_user, password)
+    new_user_id = new_item['id']
+
+    # Yeni eklenen kullanıcının TestPortal'daki datalarını doğrudan çek ve kaydet
+    fetch_res = iccid_module.fetch_iccids(user_ids=[new_user_id])
+    data_count = len(fetch_res.get('data', [])) if fetch_res.get('success') else 0
+
+    return ok(
+        _get_tp_users_view(),
+        message=f"{name} başarıyla eklendi ve TestPortal'daki {data_count} datası çekilip kaydedildi."
+    )
 
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])

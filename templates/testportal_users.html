@@ -10,13 +10,13 @@
         <div class="card-header">
             <h3><i class="fas fa-users"></i> Kayıtlı TestPortal Kullanıcıları</h3>
             <a href="/iccid" class="btn btn-secondary btn-sm">
-                <i class="fas fa-sim-card"></i> ICCID Kontrol'e Git
+                <i class="fas fa-database"></i> Data Kontrol'e Git
             </a>
         </div>
         <div class="card-body">
             <!-- Çoklu Seçimli Dropdown -->
             <div class="form-group">
-                <label><i class="fas fa-check-square"></i> ICCID Çekilecek Kullanıcıları Seçin (Çoklu Seçim)</label>
+                <label><i class="fas fa-check-square"></i> Data Çekilecek Kullanıcıları Seçin (Çoklu Seçim)</label>
                 <div class="input-with-action">
                     <div class="multi-select" id="user-multi-select" style="flex: 1;">
                         <button type="button" class="multi-select-btn" onclick="toggleMultiSelect(event)">
@@ -49,10 +49,12 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th width="50">#</th>
+                            <th width="40">#</th>
                             <th>Kullanıcı Adı</th>
                             <th>Domain ID</th>
-                            <th width="120">İşlem</th>
+                            <th>Üzerindeki Datalar</th>
+                            <th width="140">TestPortal</th>
+                            <th width="90">İşlem</th>
                         </tr>
                     </thead>
                     <tbody id="users-tbody">
@@ -62,7 +64,24 @@
                             <td><strong>{{ u.name }}</strong></td>
                             <td><code>{{ u.user }}</code></td>
                             <td>
-                                <button class="btn btn-secondary btn-sm text-danger" onclick="deleteSingleUser({{ u.id }}, '{{ u.name }}')">
+                                {% if u.total_lines > 0 %}
+                                <span class="badge badge-info" style="font-size: 0.82rem; padding: 4px 8px;">
+                                    <i class="fas fa-sim-card"></i> <strong>{{ u.total_lines }} Data</strong>
+                                    <span style="opacity: 0.85; margin-left: 4px;">({{ u.sanal_count }} Sanal, {{ u.fiziksel_count }} Fiziksel)</span>
+                                </span>
+                                {% else %}
+                                <span class="badge badge-secondary" style="font-size: 0.78rem; opacity: 0.7; padding: 3px 8px;">
+                                    <i class="fas fa-times-circle"></i> Data Yok
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-primary btn-sm btn-fetch-user" id="btn-fetch-{{ u.id }}" onclick="fetchUserLines({{ u.id }}, '{{ u.name }}')" title="{{ u.name }} için TestPortal'dan güncel dataları çek">
+                                    <i class="fas fa-sync-alt"></i> Dataları Çek
+                                </button>
+                            </td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm text-danger" onclick="deleteSingleUser({{ u.id }}, '{{ u.name }}')" title="Kullanıcıyı Sil">
                                     <i class="fas fa-trash-alt"></i> Çıkar
                                 </button>
                             </td>
@@ -175,10 +194,25 @@
         tbody.innerHTML = '';
         users.forEach((u, idx) => {
             const tr = document.createElement('tr');
+            const dataBadge = u.total_lines > 0
+                ? `<span class="badge badge-info" style="font-size: 0.82rem; padding: 4px 8px;">
+                     <i class="fas fa-sim-card"></i> <strong>${u.total_lines} Data</strong> 
+                     <span style="opacity: 0.85; margin-left: 4px;">(${u.sanal_count} Sanal, ${u.fiziksel_count} Fiziksel)</span>
+                   </span>`
+                : `<span class="badge badge-secondary" style="font-size: 0.78rem; opacity: 0.7; padding: 3px 8px;">
+                     <i class="fas fa-times-circle"></i> Data Yok
+                   </span>`;
+
             tr.innerHTML = `
                 <td>${idx + 1}</td>
                 <td><strong>${escapeHtml(u.name)}</strong></td>
                 <td><code>${escapeHtml(u.user)}</code></td>
+                <td>${dataBadge}</td>
+                <td>
+                    <button class="btn btn-primary btn-sm btn-fetch-user" id="btn-fetch-${u.id}" onclick="fetchUserLines(${u.id}, '${escapeHtml(u.name)}')" title="${escapeHtml(u.name)} için TestPortal'dan güncel dataları çek">
+                        <i class="fas fa-sync-alt"></i> Dataları Çek
+                    </button>
+                </td>
                 <td>
                     <button class="btn btn-secondary btn-sm text-danger" onclick="deleteSingleUser(${u.id}, '${escapeHtml(u.name)}')">
                         <i class="fas fa-trash-alt"></i> Çıkar
@@ -187,6 +221,39 @@
             `;
             tbody.appendChild(tr);
         });
+    }
+
+    async function fetchUserLines(userId, userName) {
+        const btn = document.getElementById(`btn-fetch-${userId}`);
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Çekiliyor...';
+        }
+        showToast(`${userName} için TestPortal'dan datalar çekiliyor...`, 'info');
+
+        try {
+            const res = await apiCall('/api/iccid/fetch', 'POST', { user_ids: [userId] });
+            if (res.success) {
+                const count = Array.isArray(res.data) ? res.data.length : 0;
+                showToast(`${userName} için ${count} data başarıyla çekildi ve kaydedildi.`, 'success');
+                // Tabloyu güncel data sayılarıyla yenile
+                const uRes = await apiCall('/api/users', 'GET');
+                if (uRes.success) {
+                    renderUsersUI(uRes.data);
+                }
+            } else {
+                showToast(res.error || 'Datalar çekilemedi.', 'error');
+            }
+        } catch (e) {
+            showToast('Bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            const currentBtn = document.getElementById(`btn-fetch-${userId}`);
+            if (currentBtn) {
+                currentBtn.disabled = false;
+                currentBtn.innerHTML = originalHtml || '<i class="fas fa-sync-alt"></i> Dataları Çek';
+            }
+        }
     }
 
     async function addNewUser() {
@@ -198,7 +265,7 @@
         }
 
         const btn = document.getElementById('btn-add-user');
-        setLoading(btn, true, 'TestPortal Doğrulanıyor...');
+        setLoading(btn, true, 'TestPortal Doğrulanıyor ve Datalar Çekiliyor...');
         const res = await apiCall('/api/users', 'POST', { user, password });
         setLoading(btn, false);
 
