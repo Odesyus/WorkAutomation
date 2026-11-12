@@ -222,7 +222,12 @@ code, .mono {
     font-weight: 500; font-size: 13px;
     color: var(--text-muted);
 }
-input[type="text"], select {
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="email"],
+input[type="search"],
+select {
     width: 100%;
     padding: 10px 14px;
     background: var(--input-bg);
@@ -237,9 +242,57 @@ input[type="text"], select {
 }
 select { font-family: inherit; cursor: pointer; }
 select option { background: var(--bg-sidebar); color: var(--text); }
-input[type="text"]::placeholder { color: var(--text-muted); opacity: .6; font-family: 'Inter', sans-serif; }
-input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
+input[type="text"]::placeholder,
+input[type="password"]::placeholder,
+input[type="number"]::placeholder,
+input[type="email"]::placeholder,
+input[type="search"]::placeholder {
+    color: var(--text-muted); opacity: .6; font-family: 'Inter', sans-serif;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="search"]:focus,
+select:focus {
+    outline: none; border-color: var(--primary); box-shadow: var(--focus-ring);
+}
 input.input-error { border-color: var(--danger) !important; box-shadow: 0 0 0 3px var(--danger-soft) !important; }
+
+/* Şifre Göster/Gizle Sarmalayıcı */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+.password-wrapper input {
+    width: 100%;
+    padding-right: 42px !important;
+}
+.password-wrapper .toggle-password {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: color 0.2s ease, transform 0.1s ease;
+    z-index: 2;
+}
+.password-wrapper .toggle-password:hover {
+    color: var(--primary);
+}
+.password-wrapper .toggle-password:active {
+    transform: translateY(-50%) scale(0.92);
+}
 
 .input-with-action, .input-with-select { display: flex; gap: 10px; }
 .input-with-action input, .input-with-select input { flex: 1; }

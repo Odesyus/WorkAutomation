@@ -28,7 +28,12 @@
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="bscs_pass"><i class="fas fa-key"></i> BSCS Şifre</label>
-                        <input type="password" id="bscs_pass" name="bscs_pass" placeholder="BSCS şifreniz" required>
+                        <div class="password-wrapper">
+                            <input type="password" id="bscs_pass" name="bscs_pass" placeholder="BSCS şifreniz" required>
+                            <button type="button" class="toggle-password" onclick="togglePasswordVisibility('bscs_pass', this)" title="Şifreyi Göster/Gizle" tabindex="-1">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -43,7 +48,12 @@
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="tp_pass"><i class="fas fa-lock"></i> TestPortal Şifre</label>
-                        <input type="password" id="tp_pass" name="tp_pass" placeholder="TestPortal şifreniz" required>
+                        <div class="password-wrapper">
+                            <input type="password" id="tp_pass" name="tp_pass" placeholder="TestPortal şifreniz" required>
+                            <button type="button" class="toggle-password" onclick="togglePasswordVisibility('tp_pass', this)" title="Şifreyi Göster/Gizle" tabindex="-1">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -76,7 +86,12 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 14px;">
                             <label for="cmpdb_pass">CMPDB Şifre</label>
-                            <input type="password" id="cmpdb_pass" name="cmpdb_pass" value="{{ local_cfg.db.cmpdb.password if local_cfg.db and local_cfg.db.cmpdb else '' }}" placeholder="Şifre">
+                            <div class="password-wrapper">
+                                <input type="password" id="cmpdb_pass" name="cmpdb_pass" value="{{ local_cfg.db.cmpdb.password if local_cfg.db and local_cfg.db.cmpdb else '' }}" placeholder="Şifre">
+                                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('cmpdb_pass', this)" title="Şifreyi Göster/Gizle" tabindex="-1">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="form-group" style="margin-bottom: 10px;">
                             <label for="merns_user">MERNS Kullanıcı Adı</label>
@@ -84,7 +99,12 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="merns_pass">MERNS Şifre</label>
-                            <input type="password" id="merns_pass" name="merns_pass" value="{{ local_cfg.db.merns.password if local_cfg.db and local_cfg.db.merns else '' }}" placeholder="Şifre">
+                            <div class="password-wrapper">
+                                <input type="password" id="merns_pass" name="merns_pass" value="{{ local_cfg.db.merns.password if local_cfg.db and local_cfg.db.merns else '' }}" placeholder="Şifre">
+                                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('merns_pass', this)" title="Şifreyi Göster/Gizle" tabindex="-1">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </details>
