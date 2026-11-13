@@ -439,7 +439,11 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     # "Hat Tipi ve Numara Seçimi" ekranına geçiş (OTP ve doğrulama pencerelerini hızlıca aş)
     report(30, "Hat Tipi ve Numara Seçimi ekranına geçiliyor...")
     for ileri_att in range(15):
-        if page.get_by_role("radio", name="Faturalı Hat").is_visible() or page.get_by_role("radio", name="Faturasız Hat").is_visible():
+        if (
+            page.get_by_role("radio", name="Faturalı Hat").is_visible()
+            or page.get_by_role("radio", name="Faturasız Hat").is_visible()
+            or page.get_by_text("Lütfen hat tipini").is_visible()
+        ):
             break
 
         # OTP dialog veya ADF hata modalı varsa Tamam'a bas
@@ -458,10 +462,15 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             });
         }""")
 
+        # Sadece Yeni Müşteri ekranının İleri butonuna bas (Hat Tipi ekranına geçtiysek basma)
+        if page.get_by_text("Lütfen hat tipini").is_visible():
+            break
+
         ileri_btn = page.locator("button[id*='cb23'], button:has-text('İleri')").first
         if ileri_btn.is_visible():
             ileri_btn.click(force=True)
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(1200)
+            wait_glasspane()
 
     expect(page.get_by_role("radio", name=HAT_TIPI, exact=True)).to_be_visible(timeout=15000)
 
