@@ -252,24 +252,21 @@ def _register_on_es(p, imei, imsi, msisdn, manufacturer, model, task_id, base_pr
     context = p.chromium.launch_persistent_context(
         user_data_dir=ES_PROFILE_DIR,
         channel='chrome',
-        headless=False,
+        headless=True,
         viewport={'width': 1280, 'height': 800},
         ignore_https_errors=True,
-        args=['--ignore-certificate-errors', '--window-size=1280,800', '--window-position=0,0']
+        args=['--ignore-certificate-errors', '--window-size=1280,800']
     )
     page = context.pages[0] if context.pages else context.new_page()
     tasks[task_id]['_page'] = page
     try:
-        _bring_chrome_to_foreground()
         page.goto(device_add_url, timeout=30000)
         page.wait_for_timeout(2500)
 
-        # Keycloak giriş ekranındaysak otomatik kullanıcı/şifre doldur ve pencereyi öne getir
+        # Keycloak giriş ekranındaysak otomatik kullanıcı/şifre doldur ve web arayüzündeki canlı ekranda göster
         if '/auth/realms/' in page.url or page.locator('#username').count() > 0:
             page.fill('#username', user)
             page.fill('#login-password', password)
-            page.bring_to_front()
-            _bring_chrome_to_foreground()
             tasks[task_id]['message'] = (
                 'ES: Kullanıcı adı ve şifre dolduruldu. '
                 'Lütfen aşağıdaki canlı ekranda "I\'m not a robot" (reCAPTCHA) kutucuğuna tıklayın '
@@ -280,9 +277,6 @@ def _register_on_es(p, imei, imsi, msisdn, manufacturer, model, task_id, base_pr
             tasks[task_id]['_click_queue'] = []
 
             for loop_i in range(360):  # 180 saniye bekle
-                if loop_i % 6 == 0 and loop_i <= 30:
-                    _bring_chrome_to_foreground()
-
                 # 1. Kuyruktaki kullanıcı tıklamalarını uygula
                 while tasks[task_id].get('_click_queue'):
                     try:

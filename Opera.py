@@ -125,15 +125,11 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
         else:
             report(5, "Opera MTS'e giriş yapılıyor...")
 
-        browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
-        context = browser.new_context(no_viewport=True)
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1440, "height": 900})
         # Tarayıcı yazdırma penceresinin (window.print) otomasyonu bloklamasını engelle
         context.add_init_script("window.print = function() {};")
         page = context.new_page()
-        try:
-            page.bring_to_front()
-        except Exception:
-            pass
         page.set_default_timeout(60000)  # Yavaş ADF istekleri için 60 saniye default timeout
         page.set_default_navigation_timeout(60000)
         if callable(opts.get("on_page_ready")):
