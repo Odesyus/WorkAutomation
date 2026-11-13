@@ -283,15 +283,22 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     else:
         page.locator("input[name=\"pt1:r1:1:r1:2:it20\"]").fill("ada")
 
-    # Kimlik Türü seçimi (soc7)
+    # Kimlik Türü seçimi (soc7): TC GEÇİCİ KİMLİK BELGESİ
     soc7 = page.locator("select[name*='soc7']")
     if soc7.count() > 0:
         ks = soc7.first
     else:
         ks = page.locator("select[name=\"pt1:r1:1:r1:2:soc7\"]")
-    ks.focus()
-    for _ in range(3):
-        ks.press("ArrowDown")
+    try:
+        ks.select_option(label="TC GEÇİCİ KİMLİK BELGESİ")
+    except Exception:
+        try:
+            ks.select_option(index=2)
+        except Exception:
+            ks.focus()
+            for _ in range(3):
+                ks.press("ArrowDown")
+    ks.dispatch_event("change")
     ks.press("Tab")
     page.wait_for_timeout(500)
 
@@ -300,12 +307,15 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     except Exception:
         pass
 
-    seri_no = page.get_by_role("textbox", name="Seri Numarası")
-    if seri_no.count() > 0:
+    seri_no = page.get_by_role("textbox", name=re.compile(r"Seri Numarası", re.I))
+    if seri_no.count() > 0 and seri_no.first.is_visible():
         seri_no.first.click()
         seri_no.first.fill("aa123456")
     else:
-        page.locator("input[name*='it22']").first.fill("aa123456")
+        try:
+            page.locator("input[name*='it22'], input[id*='it22']").filter(has_not=page.locator("[disabled]")).first.fill("aa123456")
+        except Exception:
+            pass
     if (not(page.get_by_role("combobox", name="İl (Gerekli)", exact=True).is_visible())):
         page.get_by_title("Ara: İl").first.click()
         expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("ADANA", timeout=DEFAULT_TIMEOUT)
@@ -835,71 +845,71 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     page.wait_for_timeout(1000)
 
     def click_any_visible_tamam():
-        # 1. Doğrudan d1::msgDlg ve af:dialog butonlarına Playwright ile tıkla
+        # 1. Playwright ile 'Tamam' butonları
+        try:
+            tamam_btns = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
+            for ti in range(tamam_btns.count()):
+                if tamam_btns.nth(ti).is_visible():
+                    tamam_btns.nth(ti).click(force=True, timeout=1000)
+                    page.wait_for_timeout(400)
+                    return True
+        except Exception:
+            pass
+
+        # 2. msgDlg ve dialog cancel/ok butonları
         try:
             msg_btn = page.locator("[id*='msgDlg::cancel'], [id*='msgDlg::_afrOk'], [id*='msgDlg'] button, [id*='msgDlg'] a")
             if msg_btn.count() > 0:
                 for mi in range(msg_btn.count()):
                     if msg_btn.nth(mi).is_visible():
-                        msg_btn.nth(mi).click(force=True, timeout=1500)
-                        page.wait_for_timeout(500)
+                        msg_btn.nth(mi).click(force=True, timeout=1000)
+                        page.wait_for_timeout(400)
                         return True
         except Exception:
             pass
 
-        # 2. get_by_role("button", name="Tamam")
+        # 3. Kapat (x) butonları
         try:
-            t_btns = page.get_by_role("button", name="Tamam")
-            for ti in range(t_btns.count()):
-                if t_btns.nth(ti).is_visible():
-                    t_btns.nth(ti).click(force=True, timeout=1500)
-                    page.wait_for_timeout(500)
+            close_icons = page.locator(".af_dialog_close-icon, a[title='Kapat'], .af_messages_close-icon, a.af_panelWindow_close-icon")
+            for ci in range(close_icons.count()):
+                if close_icons.nth(ci).is_visible():
+                    close_icons.nth(ci).click(force=True, timeout=1000)
+                    page.wait_for_timeout(400)
                     return True
         except Exception:
             pass
 
-        # 3. Doğrudan JavaScript ile textContent veya value 'Tamam' olan elemanı tıkla
+        # 4. Doğrudan DOM üzerinden click
         try:
             clicked = page.evaluate("""() => {
-                const dlgBtn = document.getElementById('d1::msgDlg::cancel') ||
-                               document.querySelector("[id*='msgDlg'] button, [id*='msgDlg'] a, [id*='msgDlg'] input");
-                if (dlgBtn) {
-                    dlgBtn.click();
-                    return true;
-                }
-                const candidates = Array.from(document.querySelectorAll("button, input, a, td, span, div[role='button']"));
-                for (const el of candidates) {
-                    const txt = (el.textContent || el.value || el.innerText || '').trim().toLowerCase();
+                const els = Array.from(document.querySelectorAll("button, a, input, div[role='button'], span"));
+                for (const el of els) {
+                    const txt = (el.innerText || el.value || el.textContent || '').trim().toLowerCase();
                     if (txt === 'tamam') {
-                        const r = el.getBoundingClientRect();
-                        if (r.width > 0 && r.height > 0) {
-                            el.click();
-                            return true;
-                        }
-                    }
-                }
-                const closeIcons = document.querySelectorAll("a.af_messages_close-icon, a.af_dialog_close-icon, a.af_panelWindow_close-icon, a[title*='Kapat']");
-                for (const ci of closeIcons) {
-                    const r = ci.getBoundingClientRect();
-                    if (r.width > 0 && r.height > 0) {
-                        ci.click();
+                        el.click();
+                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                         return true;
                     }
+                }
+                const closeX = document.querySelector(".af_dialog_close-icon, a[title*='Kapat' i], .af_messages_close-icon");
+                if (closeX) {
+                    closeX.click();
+                    return true;
                 }
                 return false;
             }""")
             if clicked:
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(400)
                 return True
         except Exception:
             pass
 
-        # 4. Enter / Escape tuşu gönder
+        # 5. Klavye tuşları
         try:
-            page.keyboard.press("Enter")
-            page.wait_for_timeout(300)
             page.keyboard.press("Escape")
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(200)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(200)
         except Exception:
             pass
         return False
@@ -950,18 +960,17 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
-        # Uyarı / Mesaj popup'ı varsa ("Mobil ödeme...", "E-fatura..." vb.) Tamam'a tıkla ve bekle
-        if page.locator("[id*='msgDlg']:visible, div[role='dialog']:has-text('Tamam'):visible").count() > 0:
+        # Uyarı / Mesaj popup'ı varsa ("Mobil ödeme...", "E-fatura..." vb.) Tamam'a tıkla ve devam et
+        if page.locator("[id*='msgDlg']:visible, div[role='dialog']:has-text('Tamam'):visible, .af_dialog:visible").count() > 0:
             click_any_visible_tamam()
-            page.wait_for_timeout(1000)
-            continue
+            page.wait_for_timeout(600)
 
         # Kapat iconu / butonu varsa
         try:
             kapat_icon = page.locator("div[role='dialog'] a[title='Kapat'], div[class*='af_dialog'] a[title='Kapat'], div[class*='af_panelWindow'] a[title='Kapat'], a.af_messages_close-icon")
             for ki in range(kapat_icon.count()):
                 if kapat_icon.nth(ki).is_visible():
-                    kapat_icon.nth(ki).click(force=True, timeout=1500)
+                    kapat_icon.nth(ki).click(force=True, timeout=1000)
                     page.wait_for_timeout(300)
         except Exception:
             pass
