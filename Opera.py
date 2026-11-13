@@ -285,21 +285,41 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         page.locator("input[name=\"pt1:r1:1:r1:2:it20\"]").fill("ada")
 
     # Kimlik Türü seçimi (soc7): Standart TC ÇİPLİ KİMLİK KARTI
-    soc7 = page.locator("select[name*='soc7']")
-    if soc7.count() > 0:
-        ks = soc7.first
-    else:
-        ks = page.locator("select[name=\"pt1:r1:1:r1:2:soc7\"]")
+    # Not: Oracle ADF ilk boş değerden doğrudan "TC ÇİPLİ KİMLİK KARTI" seçildiğinde
+    # PPR tetiklemeyip Geçerlilik Tarihi alanını gizli bırakabiliyor. Bu nedenle önce
+    # başka bir seçenek üzerinden PPR tetikleyip ardından "TC ÇİPLİ KİMLİK KARTI" seçiyoruz.
+    wait_glasspane()
+    def _get_soc7():
+        loc = page.locator("select[name*='soc7']")
+        return loc.first if loc.count() > 0 else page.locator("select[name=\"pt1:r1:1:r1:2:soc7\"]")
+
     try:
-        ks.select_option(label="TC ÇİPLİ KİMLİK KARTI")
-    except Exception:
+        id2_loc = page.locator("input[id*='id2::content']").first
+        if not (id2_loc.count() > 0 and id2_loc.is_visible()):
+            ks = _get_soc7()
+            ks.focus()
+            ks.click()
+            ks.select_option(label="TC GEÇİCİ KİMLİK BELGESİ")
+            ks.dispatch_event("change")
+            ks.press("Tab")
+            page.wait_for_timeout(1000)
+            wait_glasspane()
+
+        ks = _get_soc7()
+        ks.focus()
+        ks.click()
         try:
-            ks.select_option(index=0)
+            ks.select_option(label="TC ÇİPLİ KİMLİK KARTI")
         except Exception:
-            pass
-    ks.dispatch_event("change")
-    ks.press("Tab")
-    page.wait_for_timeout(500)
+            ks.select_option(index=0)
+        ks.dispatch_event("change")
+        ks.press("Tab")
+        page.wait_for_timeout(1000)
+        wait_glasspane()
+        if id2_loc.count() > 0:
+            id2_loc.wait_for(state="visible", timeout=5000)
+    except Exception as e:
+        print(f"[KİMLİK TÜRÜ SEÇİM UYARI] {e}", flush=True)
 
 # Seri numarası, Geçerlilik Tarihi ve Kimlik Kayıt No girişi (Opera yeni güncellemesinde zorunlu alanlar)
     STATIK_SERI_NO = "K35B28574"
@@ -307,6 +327,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     try:
         page.evaluate("""(data) => {
             document.querySelectorAll("input:not([disabled])").forEach(inp => {
+                if (inp.offsetParent === null) return;
                 const row = inp.closest('tr');
                 const txt = row ? row.innerText.toLowerCase() : '';
                 // Seri Numarası: Sabit K35B28574
@@ -321,7 +342,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                     inp.dispatchEvent(new Event('input', { bubbles: true }));
                     inp.dispatchEvent(new Event('change', { bubbles: true }));
                 }
-                // Kimlik Kayıt Numarası
+                // Kimlik Kayıt Numarası (sadece görünürse)
                 if (txt.includes('kimlik kayıt') || inp.id.includes('it7')) {
                     inp.value = '123456';
                     inp.dispatchEvent(new Event('input', { bubbles: true }));
