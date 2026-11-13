@@ -53,7 +53,7 @@ def get_user_clean_iccids():
 ICCID_LIST = get_user_clean_iccids()
 
 ICCID_Index = 0
-DEFAULT_TIMEOUT = 60000  # 60 saniye
+DEFAULT_TIMEOUT = 150000  # 150 saniye (2.5 dk - yavaş Opera geçişleri için)
 
 
 def main():
@@ -130,8 +130,8 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
         # Tarayıcı yazdırma penceresinin (window.print) otomasyonu bloklamasını engelle
         context.add_init_script("window.print = function() {};")
         page = context.new_page()
-        page.set_default_timeout(60000)  # Yavaş ADF istekleri için 60 saniye default timeout
-        page.set_default_navigation_timeout(60000)
+        page.set_default_timeout(DEFAULT_TIMEOUT)  # Yavaş ADF istekleri için 150 saniye default timeout
+        page.set_default_navigation_timeout(DEFAULT_TIMEOUT)
         if callable(opts.get("on_page_ready")):
             opts["on_page_ready"](page)
 
@@ -192,7 +192,7 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
 
 
 def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WCDMA, LTE, NR, VoLTE, VoWifi, report, capture_error_screenshot, HAT_TIPI="Faturalı Hat", options=None):
-    def wait_glasspane(timeout=20000):
+    def wait_glasspane(timeout=120000):
         try:
             glass = page.locator(".AFBlockingGlassPane, .AFModalGlassPane")
             if glass.count() > 0 and glass.first.is_visible():
@@ -469,10 +469,14 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         ileri_btn = page.locator("button[id*='cb23'], button:has-text('İleri')").first
         if ileri_btn.is_visible():
             ileri_btn.click(force=True)
-            page.wait_for_timeout(1200)
             wait_glasspane()
+            try:
+                expect(page.get_by_role("radio", name=HAT_TIPI, exact=True)).to_be_visible(timeout=4000)
+                break
+            except Exception:
+                pass
 
-    expect(page.get_by_role("radio", name=HAT_TIPI, exact=True)).to_be_visible(timeout=15000)
+    expect(page.get_by_role("radio", name=HAT_TIPI, exact=True)).to_be_visible(timeout=DEFAULT_TIMEOUT)
 
         #Hat Tipi ve Numara Seçimi
     report(40, f"{HAT_TIPI} seçiliyor, MSISDN: {MSISDN}")
