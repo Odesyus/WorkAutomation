@@ -379,26 +379,29 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
     try:
         il_inp = page.locator("input[id*='addrCityName1Id::content']").first
+        ilce_inp = page.locator("input[id*='addrSubPrvncName1Id::content']").first
+        semt_inp = page.locator("input[id*='addrDstrctName1Id::content']").first
+
         il_inp.scroll_into_view_if_needed()
         if (il_inp.input_value() or "").strip() != "ADANA":
             il_inp.click()
             il_inp.fill("ADANA")
             il_inp.press("Tab")
-            page.wait_for_timeout(1200)
+            expect(il_inp).to_have_value("ADANA", timeout=DEFAULT_TIMEOUT)
             wait_glasspane()
 
-        ilce_inp = page.locator("input[id*='addrSubPrvncName1Id::content']").first
+        expect(ilce_inp).to_be_enabled(timeout=DEFAULT_TIMEOUT)
         ilce_inp.click()
         ilce_inp.fill("ALADAĞ(KARSANTI)")
         ilce_inp.press("Tab")
-        page.wait_for_timeout(1200)
+        expect(ilce_inp).to_have_value("ALADAĞ(KARSANTI)", timeout=DEFAULT_TIMEOUT)
         wait_glasspane()
 
-        semt_inp = page.locator("input[id*='addrDstrctName1Id::content']").first
+        expect(semt_inp).to_be_enabled(timeout=DEFAULT_TIMEOUT)
         semt_inp.click()
         semt_inp.fill("AKÖREN")
         semt_inp.press("Tab")
-        page.wait_for_timeout(1200)
+        expect(semt_inp).to_have_value("AKÖREN", timeout=DEFAULT_TIMEOUT)
         wait_glasspane()
         print("[ADRES] İl/İlçe/Semt seçimi tamamlandı.", flush=True)
     except Exception as e:
@@ -483,12 +486,9 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
 
     radio_btn = page.get_by_role("radio", name=HAT_TIPI, exact=True)
     radio_btn.check()
+    expect(radio_btn).to_be_checked(timeout=DEFAULT_TIMEOUT)
     wait_glasspane()
-    page.wait_for_timeout(1000)
-    if not radio_btn.is_checked():
-        radio_btn.check()
-        wait_glasspane()
-        page.wait_for_timeout(1000)
+    expect(page.get_by_text("Fiziksel SIM ile ilerlemek")).to_be_visible(timeout=DEFAULT_TIMEOUT)
 
     page.get_by_text("Fiziksel SIM ile ilerlemek").click()
     page.get_by_role("radio", name="Fiziksel SIM ile ilerlemek").check()
@@ -530,15 +530,10 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         page.get_by_role("button", name="İleri").click()
         expect(page.get_by_role("combobox")).to_be_visible(timeout=DEFAULT_TIMEOUT)
 
-    # Katalog combobox'ının seçeneklerinin yüklenmesini bekle (en az 2 seçenek)
+    # Katalog combobox'ının seçeneklerinin yüklenmesini akıllı expect ile bekle (en az 2 seçenek)
     katalog_cb = page.get_by_role("combobox")
-    for _ in range(40):
-        try:
-            if katalog_cb.locator("option").count() > 1:
-                break
-        except Exception:
-            pass
-        page.wait_for_timeout(300)
+    expect(katalog_cb).to_be_enabled(timeout=DEFAULT_TIMEOUT)
+    expect(katalog_cb.locator("option").nth(1)).to_be_attached(timeout=DEFAULT_TIMEOUT)
 
     is_faturasiz = (HAT_TIPI == "Faturasız Hat")
     target_katalog_val = "2" if is_faturasiz else "3"
@@ -773,8 +768,10 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             pass
         return False
 
-    # İleri butonuna basarak "Müşteri Tercihleri" sayfasına geçişi garantiye al
-    for _ in range(30):
+    musteri_tercih_target = page.locator("select:has(option:has-text('İzin Verilsin')), select:has(option:has-text('İzin Verilmesin'))").first.or_(page.get_by_role("heading", name="Müşteri Tercihleri"))
+
+    # İleri butonuna basarak "Müşteri Tercihleri" sayfasına geçişi akıllı expect ile garantiye al
+    for _ in range(15):
         if _is_musteri_tercihleri_reached():
             break
 
@@ -792,7 +789,12 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                 ileri_btn.dispatch_event("click")
             except Exception:
                 pass
-        page.wait_for_timeout(1000)
+        wait_glasspane()
+        try:
+            expect(musteri_tercih_target).to_be_visible(timeout=5000)
+            break
+        except Exception:
+            pass
 
     #Müşteri Tercihleri
     secilen_tercihler = [
@@ -803,11 +805,8 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     ]
     report(70, f"Müşteri tercihleri ayarlanıyor ({', '.join(secilen_tercihler) or 'Varsayılan'})...")
 
-    # Müşteri Tercihleri ekranının yüklendiğini bekle
-    for _ in range(30):
-        if _is_musteri_tercihleri_reached():
-            break
-        page.wait_for_timeout(500)
+    # Müşteri Tercihleri ekranının yüklendiğini akıllı expect ile bekle
+    expect(musteri_tercih_target).to_be_visible(timeout=DEFAULT_TIMEOUT)
     print("Müşteri Tercihleri sayfasına ulaşıldı")
     wait_glasspane()
 
@@ -1193,8 +1192,13 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
-        page.wait_for_timeout(1500)
         wait_glasspane()
+        try:
+            expect(page.get_by_role("button", name="Sözleşme Özeti Gönder")).to_be_visible(timeout=4000)
+            print("[FATURA/TERCİH] Sipariş Özeti ekranına ulaşıldı.", flush=True)
+            break
+        except Exception:
+            pass
 
     expect(page.get_by_role("button", name="Sözleşme Özeti Gönder")).to_be_visible(timeout=DEFAULT_TIMEOUT)
     report(85, "Sözleşme özeti gönderiliyor...")
@@ -1236,8 +1240,9 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         page1.wait_for_load_state("domcontentloaded", timeout=10000)
     except Exception:
         pass
-    page.wait_for_timeout(2000)
-    if not page.get_by_role("button", name="Tamam").is_visible():
+    try:
+        expect(page.get_by_role("button", name="Tamam")).to_be_visible(timeout=2000)
+    except Exception:
         current_popup_url = page1.url or ""
         if "printOverYn=" not in current_popup_url:
             if "reportservlet?" in current_popup_url:
@@ -1248,10 +1253,6 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                 page1.goto(target_url, wait_until="commit", timeout=10000)
             except Exception:
                 pass
-    for _ in range(30):
-        if page.get_by_role("button", name="Tamam").is_visible():
-            break
-        page.wait_for_timeout(500)
     try:
         page1.close()
     except Exception:
