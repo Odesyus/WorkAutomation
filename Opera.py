@@ -237,13 +237,15 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         tckn_box.press("Tab")
         try:
             expect(tckn_box).to_have_value(TCKN, timeout=5000)
+            page.wait_for_load_state("networkidle", timeout=3000)
         except Exception:
             pass
         wait_glasspane(timeout=10000)
 
         mernis_btn = page.get_by_role("button", name="Mernis Sorgulama")
+        found = False
         if mernis_btn.count() > 0 and mernis_btn.is_visible():
-            for _m_click in range(2):
+            for _m_click in range(3):
                 try:
                     expect(mernis_btn).to_be_enabled(timeout=5000)
                     mernis_btn.click()
@@ -251,23 +253,33 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                 except Exception:
                     pass
 
-                # Eğer "Doğum Tarihi ve Kimlik numarası zorunludur" uyarısı çıkarsa kapatıp tekrar bas
+                # Adı doldu mu yoksa Tamam uyarısı mı çıktı dinamik kontrol et
+                try:
+                    expect(name_box).not_to_have_value("", timeout=6000)
+                    found = True
+                    break
+                except Exception:
+                    pass
+
                 try:
                     tamam_after = page.get_by_role("button", name="Tamam")
                     if tamam_after.count() > 0 and tamam_after.first.is_visible():
                         tamam_after.first.click(timeout=2000)
+                        expect(tamam_after.first).to_be_hidden(timeout=5000)
+                        tckn_box.click()
+                        tckn_box.press("Tab")
+                        page.wait_for_load_state("networkidle", timeout=3000)
                         wait_glasspane(timeout=10000)
                         continue
                 except Exception:
                     pass
-                break
 
-        found = False
-        try:
-            expect(name_box).not_to_have_value("", timeout=12000)
-            found = True
-        except Exception:
-            pass
+        if not found:
+            try:
+                expect(name_box).not_to_have_value("", timeout=12000)
+                found = True
+            except Exception:
+                pass
 
         if found:
             break
