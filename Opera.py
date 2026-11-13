@@ -1080,9 +1080,19 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             pass
 
         # Uyarı / Mesaj popup'ı varsa ("Mobil ödeme...", "E-fatura..." vb.) Tamam'a tıkla ve devam et
-        if page.locator("[id*='msgDlg']:visible, div[role='dialog']:has-text('Tamam'):visible, .af_dialog:visible").count() > 0:
+        tamam_vis = False
+        try:
+            t_loc = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
+            for ti in range(t_loc.count()):
+                if t_loc.nth(ti).is_visible():
+                    tamam_vis = True
+                    break
+        except Exception:
+            pass
+        if tamam_vis or page.locator("[id*='msgDlg']:visible, div[role='dialog']:has-text('Tamam'):visible, .af_dialog:visible, .af_panelWindow:visible").count() > 0:
             click_any_visible_tamam()
             page.wait_for_timeout(600)
+            wait_glasspane()
 
         # Kapat iconu / butonu varsa
         try:
@@ -1102,32 +1112,37 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             });
         }""")
 
-        # Fatura Tercihleri veya diğer adımlarda "İleri" butonuna bas
+        # Fatura Tercihleri veya diğer adımlarda "İleri" butonuna gerçek tıklama ile bas
         try:
-            clicked_ileri = page.evaluate("""() => {
-                const candidates = Array.from(document.querySelectorAll("button, input[type='button'], a, [role='button']"));
-                for (const el of candidates) {
-                    const txt = (el.innerText || el.value || '').trim();
-                    if (txt === 'İleri' || txt === 'Ileri') {
-                        const r = el.getBoundingClientRect();
-                        if (r.width > 0 && r.height > 0) {
-                            el.click();
-                            return true;
+            clicked_ileri = False
+            ilr_btns = page.get_by_role("button", name=re.compile(r"^\s*İleri\s*$|^\s*Ileri\s*$", re.I))
+            for ib in range(ilr_btns.count()):
+                btn = ilr_btns.nth(ib)
+                if btn.is_visible() and btn.is_enabled():
+                    btn.scroll_into_view_if_needed()
+                    btn.click(timeout=2000)
+                    clicked_ileri = True
+                    break
+            if not clicked_ileri:
+                page.evaluate("""() => {
+                    const candidates = Array.from(document.querySelectorAll("button, input[type='button'], a, [role='button']"));
+                    for (const el of candidates) {
+                        const txt = (el.innerText || el.value || '').trim();
+                        if (txt === 'İleri' || txt === 'Ileri') {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0) {
+                                el.click();
+                                return true;
+                            }
                         }
                     }
-                }
-                return false;
-            }""")
-            if not clicked_ileri:
-                ilr_btns = page.get_by_role("button", name=re.compile(r"İleri|Ileri", re.I))
-                for ib in range(ilr_btns.count()):
-                    if ilr_btns.nth(ib).is_visible():
-                        ilr_btns.nth(ib).click(force=True, timeout=2000)
-                        break
+                    return false;
+                }""")
         except Exception:
             pass
 
         page.wait_for_timeout(1500)
+        wait_glasspane()
 
     expect(page.get_by_role("button", name="Sözleşme Özeti Gönder")).to_be_visible(timeout=DEFAULT_TIMEOUT)
     report(85, "Sözleşme özeti gönderiliyor...")
