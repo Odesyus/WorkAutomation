@@ -221,25 +221,21 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         tckn_box.fill(TCKN)
         tckn_box.press("Tab")
 
-        page.wait_for_timeout(500)
         mernis_btn = page.get_by_role("button", name="Mernis Sorgulama")
         if mernis_btn.count() > 0 and mernis_btn.is_visible():
             try:
+                expect(mernis_btn).to_be_enabled(timeout=5000)
                 mernis_btn.click(force=True)
                 wait_glasspane(timeout=30000)
             except Exception:
                 pass
 
         found = False
-        for _ in range(10):
-            try:
-                val = (name_box.input_value(timeout=500) or "").strip()
-                if val:
-                    found = True
-                    break
-            except Exception:
-                pass
-            page.wait_for_timeout(1000)
+        try:
+            expect(name_box).not_to_have_value("", timeout=12000)
+            found = True
+        except Exception:
+            pass
 
         if found:
             break
@@ -280,8 +276,11 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             ks.select_option(value="1")
             ks.dispatch_event("change")
             ks.press("Tab")
-            page.wait_for_timeout(1000)
             wait_glasspane()
+            try:
+                expect(id2_loc).to_be_visible(timeout=5000)
+            except Exception:
+                pass
 
         ks = _get_soc7()
         ks.focus()
@@ -292,10 +291,9 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             ks.select_option(value="0")
         ks.dispatch_event("change")
         ks.press("Tab")
-        page.wait_for_timeout(1000)
         wait_glasspane()
         if id2_loc.count() > 0:
-            id2_loc.wait_for(state="visible", timeout=5000)
+            expect(id2_loc).to_be_visible(timeout=5000)
     except Exception as e:
         print(f"[KİMLİK TÜRÜ SEÇİM UYARI] {e}", flush=True)
 
@@ -491,9 +489,10 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             pass
         page.wait_for_timeout(500)
     expect(page.get_by_role("textbox", name="Telefon Numarası:")).not_to_be_empty(timeout=DEFAULT_TIMEOUT)
-    page.wait_for_timeout(1500)
     wait_glasspane()
-    page.get_by_role("button", name="İleri").click()
+    ileri_hat_btn = page.get_by_role("button", name="İleri")
+    expect(ileri_hat_btn).to_be_enabled(timeout=DEFAULT_TIMEOUT)
+    ileri_hat_btn.click()
 
 
     #Ürün Kataloğu
@@ -535,21 +534,23 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
 
             katalog_cb.dispatch_event("change")
             katalog_cb.press("Tab")
-            page.wait_for_timeout(1000)
-
             wait_glasspane()
-            page.get_by_role("button", name="Ara", exact=True).click()
-            page.wait_for_timeout(1500)
 
-            # Tarife tablosunda hedef satır veya Ekle linki geldi mi kontrol et
-            if is_faturasiz:
-                if page.locator("tr").filter(has_text=re.compile(r"KRAL TAR[Iİ]FE", re.IGNORECASE)).count() > 0:
-                    break
-            else:
-                if page.get_by_role("link", name="Ekle").count() > 0:
-                    break
+            ara_btn = page.get_by_role("button", name="Ara", exact=True)
+            expect(ara_btn).to_be_enabled(timeout=DEFAULT_TIMEOUT)
+            ara_btn.click()
+            wait_glasspane()
+
+            # Tarife tablosunda hedef satır veya Ekle linki geldi mi akıllı expect ile bekle
+            target_row = (
+                page.locator("tr").filter(has_text=re.compile(r"KRAL TAR[Iİ]FE", re.IGNORECASE)).first
+                if is_faturasiz
+                else page.get_by_role("link", name="Ekle").first
+            )
+            expect(target_row).to_be_visible(timeout=5000)
+            break
         except Exception:
-            page.wait_for_timeout(1000)
+            wait_glasspane()
 
     if is_faturasiz:
         report(58, "Kral Tarife seçiliyor...")
@@ -562,7 +563,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                 tarife_inp.first.fill("KRAL")
                 wait_glasspane()
                 page.get_by_role("button", name="Ara", exact=True).click()
-                page.wait_for_timeout(1500)
+                wait_glasspane()
                 kral_row = page.locator("tr").filter(has_text=re.compile(r"KRAL TAR[Iİ]FE", re.IGNORECASE))
             except Exception:
                 pass
@@ -586,7 +587,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         ekle_target = ekle_links.nth(3) if ekle_links.count() > 3 else ekle_links.first
         ekle_target.click()
 
-    page.wait_for_timeout(1500)
+    wait_glasspane()
     report(62, "Tarife onay ve detay pencereleri kapatılıyor...")
 
     # Üst üste açılan "DİKKAT!" ve "Teklif Detay Bilgileri" modal pencerelerini sırasıyla ve eksiksiz kapat
@@ -1190,13 +1191,13 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     gsm_select.focus()
     gsm_select.press("ArrowDown")
     gsm_select.press("Tab")
-    page.wait_for_timeout(1500)
     gonder_btn = sozlesme_frame.get_by_role("button", name="Sözleşme Özeti Gönder")
-    if gonder_btn.is_disabled():
+    try:
+        expect(gonder_btn).to_be_enabled(timeout=3000)
+    except Exception:
         gsm_select.select_option("0")
         gsm_select.dispatch_event("change")
         gsm_select.press("Tab")
-        page.wait_for_timeout(1500)
     expect(gonder_btn).to_be_enabled(timeout=DEFAULT_TIMEOUT)
     gonder_btn.click()
     expect(page.locator("td").filter(has_text=re.compile(r"Sözleşme\s*özetinin\s*görüntü", re.IGNORECASE)).first).to_be_visible(timeout=DEFAULT_TIMEOUT)
@@ -1237,10 +1238,15 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         page1.close()
     except Exception:
         pass
-    expect(page.get_by_role("button", name="Tamam")).to_be_visible(timeout=DEFAULT_TIMEOUT)
+    tamam_final = page.get_by_role("button", name="Tamam")
+    expect(tamam_final).to_be_visible(timeout=DEFAULT_TIMEOUT)
     wait_glasspane()
-    page.get_by_role("button", name="Tamam").click()
-    page.wait_for_timeout(1000)
+    tamam_final.click()
+    try:
+        expect(tamam_final).to_be_hidden(timeout=10000)
+    except Exception:
+        pass
+    wait_glasspane()
 
     # ---------------------
     context.close()
