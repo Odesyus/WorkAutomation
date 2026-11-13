@@ -387,23 +387,42 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         il_input = page.locator("input[id*='addrCityName'], [id*='addrCityName'] input").first
         il_val = (il_input.input_value() or "").strip() if il_input.count() > 0 else ""
         if il_val != "ADANA":
-            page.get_by_title("Ara: İl").first.click()
+            print("[ADRES] İl seçiliyor (ADANA)...", flush=True)
+            ara_il = page.get_by_title("Ara: İl").first
+            ara_il.scroll_into_view_if_needed()
+            ara_il.click(force=True)
             page.wait_for_timeout(1500)
-            page.get_by_role("row", name="ADANA").click()
-            page.wait_for_timeout(2000)
+            row_il = page.get_by_role("row", name="ADANA").first
+            row_il.wait_for(state="visible", timeout=10000)
+            row_il.click(force=True)
+            page.wait_for_timeout(1500)
+            wait_glasspane()
 
         ilce_input = page.locator("input[id*='addrSubPrvnc'], [id*='addrSubPrvnc'] input").first
         ilce_val = (ilce_input.input_value() or "").strip() if ilce_input.count() > 0 else ""
         if "ALADAĞ" not in ilce_val:
-            page.get_by_title("Ara: İlçe").first.click()
+            print("[ADRES] İlçe seçiliyor (ALADAĞ(KARSANTI))...", flush=True)
+            ara_ilce = page.get_by_title("Ara: İlçe").first
+            ara_ilce.scroll_into_view_if_needed()
+            ara_ilce.click(force=True)
             page.wait_for_timeout(1500)
-            page.get_by_role("row", name="ALADAĞ(KARSANTI)").click()
-            page.wait_for_timeout(2500)
+            row_ilce = page.get_by_role("row", name="ALADAĞ(KARSANTI)").first
+            row_ilce.wait_for(state="visible", timeout=10000)
+            row_ilce.click(force=True)
+            page.wait_for_timeout(2000)
+            wait_glasspane()
 
-        page.get_by_title("Ara: Semt").first.click()
+        print("[ADRES] Semt seçiliyor (AKÖREN)...", flush=True)
+        ara_semt = page.get_by_title("Ara: Semt").first
+        ara_semt.scroll_into_view_if_needed()
+        ara_semt.click(force=True)
         page.wait_for_timeout(1500)
-        page.get_by_role("row", name="AKÖREN").click()
-        page.wait_for_timeout(2000)
+        row_semt = page.get_by_role("row", name="AKÖREN").first
+        row_semt.wait_for(state="visible", timeout=10000)
+        row_semt.click(force=True)
+        page.wait_for_timeout(1500)
+        wait_glasspane()
+        print("[ADRES] İl/İlçe/Semt seçimi tamamlandı.", flush=True)
     except Exception as e:
         print(f"[ADRES SEÇİM HATA] {e}", flush=True)
 
