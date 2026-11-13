@@ -381,29 +381,29 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         pass
 
     # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
-    # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
-    def _pick_addr_lov(title, row_name, wait_after_ms=2000):
-        wait_glasspane()
-        btn = page.get_by_title(title).first
-        btn.scroll_into_view_if_needed()
-        btn.click(timeout=10000)
-        page.wait_for_timeout(1500)
-        row = page.get_by_role("row", name=row_name).first
-        row.wait_for(state="visible", timeout=10000)
-        try:
-            row.click(timeout=4000)
-        except Exception:
-            row.click(force=True)
-        page.wait_for_timeout(wait_after_ms)
+    try:
+        il_inp = page.locator("input[id*='addrCityName1Id::content']").first
+        il_inp.scroll_into_view_if_needed()
+        if (il_inp.input_value() or "").strip() != "ADANA":
+            il_inp.click()
+            il_inp.fill("ADANA")
+            il_inp.press("Tab")
+            page.wait_for_timeout(1200)
+            wait_glasspane()
+
+        ilce_inp = page.locator("input[id*='addrSubPrvncName1Id::content']").first
+        ilce_inp.click()
+        ilce_inp.fill("ALADAĞ(KARSANTI)")
+        ilce_inp.press("Tab")
+        page.wait_for_timeout(1200)
         wait_glasspane()
 
-    try:
-        il_input = page.locator("input[id*='addrCityName'], [id*='addrCityName'] input").first
-        il_val = (il_input.input_value() or "").strip() if il_input.count() > 0 else ""
-        if il_val != "ADANA":
-            _pick_addr_lov("Ara: İl", "ADANA", 2000)
-        _pick_addr_lov("Ara: İlçe", "ALADAĞ(KARSANTI)", 2500)
-        _pick_addr_lov("Ara: Semt", "AKÖREN", 2000)
+        semt_inp = page.locator("input[id*='addrDstrctName1Id::content']").first
+        semt_inp.click()
+        semt_inp.fill("AKÖREN")
+        semt_inp.press("Tab")
+        page.wait_for_timeout(1200)
+        wait_glasspane()
         print("[ADRES] İl/İlçe/Semt seçimi tamamlandı.", flush=True)
     except Exception as e:
         print(f"[ADRES SEÇİM HATA] {e}", flush=True)
