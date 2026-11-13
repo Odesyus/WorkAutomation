@@ -332,9 +332,10 @@ def take_task_screenshot(task_id):
         fname = f"opera_snap_{int(time.time() * 1000)}.png"
         fpath = os.path.join(shots_dir, fname)
 
+        from playwright.async_api import Page as AsyncPage
         loop = page_obj._impl_obj._loop
         fut = asyncio.run_coroutine_threadsafe(
-            page_obj._impl_obj.screenshot(path=fpath, full_page=True),
+            AsyncPage(page_obj._impl_obj).screenshot(path=fpath, full_page=True),
             loop
         )
         fut.result(timeout=10)
