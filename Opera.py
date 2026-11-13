@@ -357,41 +357,35 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     except Exception:
         pass
 
-    # İl, İlçe, Semt seçimi kontrolü (Semt boşsa veya İl seçilmemişse doldur)
-    needs_il = True
+    # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
     try:
-        il_val = (page.locator("input[id*='addrCityName'], [id*='addrCityName'] input").first.input_value() or "").strip()
-        semt_val = (page.locator("input[id*='addrSubPrvnc'], [id*='addrSubPrvnc'] input").first.input_value() or "").strip()
-        if il_val == "ADANA" and semt_val:
-            needs_il = False
-    except Exception:
-        pass
-
-    if needs_il:
-        try:
-            page.get_by_title("Ara: İl").first.click(timeout=5000)
-            expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("ADANA", timeout=DEFAULT_TIMEOUT)
-            page.get_by_role("row", name="ADANA").click()
-            expect(page.get_by_role("combobox", name="İl (Gerekli)", exact=True)).to_have_value("ADANA", timeout=DEFAULT_TIMEOUT)
-            page.wait_for_timeout(1000)
-            page.get_by_title("Ara: İlçe").first.click(timeout=5000)
-            expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("ALADAĞ(KARSANTI)", timeout=DEFAULT_TIMEOUT)
-            page.get_by_row("ALADAĞ(KARSANTI)").click()
-            expect(page.get_by_role("combobox", name="İlçe (Gerekli)", exact=True)).to_have_value("ALADAĞ(KARSANTI)", timeout=DEFAULT_TIMEOUT)
-            expect(page.get_by_role("combobox", name="Semt")).not_to_be_disabled(timeout=DEFAULT_TIMEOUT)
+        il_input = page.locator("input[id*='addrCityName'], [id*='addrCityName'] input").first
+        il_val = (il_input.input_value() or "").strip() if il_input.count() > 0 else ""
+        if il_val != "ADANA":
+            page.get_by_title("Ara: İl").first.click()
             page.wait_for_timeout(1500)
-            page.get_by_title("Ara: Semt").first.click(timeout=5000)
-            expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("AKÖREN", timeout=DEFAULT_TIMEOUT)
-            page.get_by_row("AKÖREN").click()
-            expect(page.get_by_role("combobox", name="Semt")).to_have_value("AKÖREN", timeout=DEFAULT_TIMEOUT)
-        except Exception:
-            pass
+            page.get_by_role("row", name="ADANA").click()
+            page.wait_for_timeout(2000)
 
-    # Adres, Bina No ve İrtibat Telefonu alanlarını her zaman doldur
+        ilce_input = page.locator("input[id*='addrSubPrvnc'], [id*='addrSubPrvnc'] input").first
+        ilce_val = (ilce_input.input_value() or "").strip() if ilce_input.count() > 0 else ""
+        if "ALADAĞ" not in ilce_val:
+            page.get_by_title("Ara: İlçe").first.click()
+            page.wait_for_timeout(1500)
+            page.get_by_role("row", name="ALADAĞ(KARSANTI)").click()
+            page.wait_for_timeout(2500)
+
+        page.get_by_title("Ara: Semt").first.click()
+        page.wait_for_timeout(1500)
+        page.get_by_role("row", name="AKÖREN").click()
+        page.wait_for_timeout(2000)
+    except Exception as e:
+        print(f"[ADRES SEÇİM HATA] {e}", flush=True)
+
+    # Adres, Bina No ve İrtibat Telefonu alanlarını doldur
     try:
         adres_box = page.get_by_role("textbox", name="Adres")
         if adres_box.count() > 0 and adres_box.first.is_visible():
-            adres_box.first.click()
             adres_box.first.fill("AAA")
         else:
             page.locator("textarea[id*='it30'], [id*='it30']").first.fill("AAA")
@@ -401,7 +395,6 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     try:
         bina_box = page.get_by_role("textbox", name="Bina/Kapı Numarası")
         if bina_box.count() > 0 and bina_box.first.is_visible():
-            bina_box.first.click()
             bina_box.first.fill("123")
         else:
             page.locator("input[id*='it31']").first.fill("123")
@@ -409,12 +402,15 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         pass
 
     try:
-        tel_box = page.get_by_role("textbox", name="İrtibat Telefon Numarası 1")
-        if tel_box.count() > 0 and tel_box.first.is_visible():
-            tel_box.first.click()
-            tel_box.first.fill("53333333333")
+        tel_box = page.locator("input[id*='mt1123'], input[name*='mt1123']").first
+        if tel_box.count() > 0 and tel_box.is_visible():
+            tel_box.click()
+            tel_box.fill("5333333333")
+            tel_box.dispatch_event("input")
+            tel_box.dispatch_event("change")
+            tel_box.press("Tab")
         else:
-            page.locator("input[id*='mt1123'], input[name*='mt1123']").first.fill("53333333333")
+            page.get_by_role("textbox", name=re.compile(r"İrtibat Telefon Numarası 1", re.I)).first.fill("5333333333")
     except Exception:
         pass
 
