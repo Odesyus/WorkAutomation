@@ -334,7 +334,7 @@ def take_task_screenshot(task_id):
 
         loop = page_obj._impl_obj._loop
         fut = asyncio.run_coroutine_threadsafe(
-            page_obj._impl_obj.screenshot(path=fpath, fullPage=True),
+            page_obj._impl_obj.screenshot(path=fpath, full_page=True),
             loop
         )
         fut.result(timeout=10)
