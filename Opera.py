@@ -19,28 +19,37 @@ import ICCID as ICCID_Func
 import CMPDB as OTP
 import config
 
-# Test ICCID listesi (Ben ve Ezgi üzerindeki temiz ICCID'ler)
-ICCID_LIST = [
-    # Ben (37157378)
-    '89902860372001744591',
-    '89902860372001744609',
-    '89902860372001744617',
-    '89902860372001744823',
-    '89902860372001744831',
-    '89902860372001744849',
-    '89902860372001745036',
-    # Ezgi
-    '89902860372001718876',
-    '89902860372001718926',
-    '89902860372001718934',
-    '89902860372001718942',
-    '89902860372001718959',
-    '89902860372001718967',
-    '89902860372001720526',
-    '89902860372001744567',
-    '89902860372001744575',
-    '89902860372001744583',
-]
+# Test ICCID listesi (Yalnızca 37157378 üzerindeki temiz hatlar)
+def get_user_clean_iccids():
+    try:
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        cache_path = os.path.join(root_dir, "iccid_cache.json")
+        if os.path.exists(cache_path):
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            user_iccids = [
+                str(x.get("iccid")).strip()
+                for x in data
+                if "37157378" in str(x.get("owner", "")) and str(x.get("iccid", "")).strip()
+            ]
+            if user_iccids:
+                return user_iccids
+    except Exception:
+        pass
+    return [
+        '89902860372001744567',
+        '89902860372001744575',
+        '89902860372001744583',
+        '89902860372001744591',
+        '89902860372001744609',
+        '89902860372001744617',
+        '89902860372001744823',
+        '89902860372001744831',
+        '89902860372001744849',
+        '89902860372001745036',
+    ]
+
+ICCID_LIST = get_user_clean_iccids()
 
 ICCID_Index = 0
 DEFAULT_TIMEOUT = 60000  # 60 saniye
@@ -144,7 +153,7 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
                 return None
 
         try:
-            return _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WCDMA, LTE, NR, VoLTE, VoWifi, report, capture_error_screenshot, HAT_TIPI)
+            return _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WCDMA, LTE, NR, VoLTE, VoWifi, report, capture_error_screenshot, HAT_TIPI, opts)
         except Exception as e:
             capture_error_screenshot()
             try:
@@ -181,7 +190,7 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
                 raise
 
 
-def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WCDMA, LTE, NR, VoLTE, VoWifi, report, capture_error_screenshot, HAT_TIPI="Faturalı Hat"):
+def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WCDMA, LTE, NR, VoLTE, VoWifi, report, capture_error_screenshot, HAT_TIPI="Faturalı Hat", options=None):
     def wait_glasspane(timeout=20000):
         try:
             glass = page.locator(".AFBlockingGlassPane, .AFModalGlassPane")
@@ -194,7 +203,8 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     page.goto(opera_url)
 
     # Opera kullanıcısı seçimi (61044774 veya CC51 vb.)
-    selected_user_key = (options.get('opera_user') if options else None)
+    opts = options or {}
+    selected_user_key = opts.get('opera_user')
     if not selected_user_key:
         try:
             local_cfg = config.load_local_config()
@@ -667,24 +677,54 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     print("Müşteri Tercihleri sayfasına ulaşıldı")
     wait_glasspane()
 
-    # Müşteri Tercihleri ekranındaki tüm izin dropdown'larını (Paylaşım ve Bilgilendirme İzinleri) doldur
-    # Seçenekte "İzin Verilsin" / "İzin Verilmesin" barındıran tüm select'leri bul ve Seçiniz olanları ayarla
-    try:
-        izin_selects = page.locator("select:has(option:has-text('İzin Verilsin')), select:has(option:has-text('İzin Verilmesin'))")
-        for iz_idx in range(izin_selects.count()):
-            try:
-                iz_sel = izin_selects.nth(iz_idx)
-                sel_text = iz_sel.evaluate("el => el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : ''")
-                if not sel_text or "seçiniz" in sel_text.lower():
-                    iz_sel.scroll_into_view_if_needed()
-                    iz_sel.focus()
-                    iz_sel.press("ArrowDown")
-                    iz_sel.press("Tab")
-                    page.wait_for_timeout(250)
-            except Exception:
-                pass
-    except Exception:
-        pass
+    # Müşteri Tercihleri ekranındaki tüm izin dropdown'larını (Paylaşım ve Bilgilendirme İzinleri) "İzin Verilsin" olarak doldur
+    def _fill_all_permissions_allowed():
+        try:
+            izin_selects = page.locator("select:has(option:has-text('İzin Verilsin'))")
+            for iz_idx in range(izin_selects.count()):
+                try:
+                    iz_sel = izin_selects.nth(iz_idx)
+                    cur_val = iz_sel.evaluate("el => el.options[el.selectedIndex] ? el.options[el.selectedIndex].text.trim() : ''")
+                    if cur_val != "İzin Verilsin":
+                        iz_sel.scroll_into_view_if_needed()
+                        try:
+                            iz_sel.select_option(label="İzin Verilsin", timeout=1500)
+                        except Exception:
+                            iz_sel.evaluate("""el => {
+                                for (let idx = 0; idx < el.options.length; idx++) {
+                                    if (el.options[idx].text.includes('İzin Verilsin')) {
+                                        el.selectedIndex = idx;
+                                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                                        break;
+                                    }
+                                }
+                            }""")
+                        iz_sel.dispatch_event("change")
+                        page.wait_for_timeout(100)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            page.evaluate("""() => {
+                document.querySelectorAll("select").forEach(sel => {
+                    for (let idx = 0; idx < sel.options.length; idx++) {
+                        if (sel.options[idx].text.trim().includes('İzin Verilsin')) {
+                            if (sel.selectedIndex !== idx) {
+                                sel.selectedIndex = idx;
+                                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                                sel.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                            break;
+                        }
+                    }
+                });
+            }""")
+        except Exception:
+            pass
+
+    _fill_all_permissions_allowed()
 
     # Müşteri Grubu kesinlikle "Normal" olmalıdır (kullanıcının VIP yetkisi yoktur)
     try:
@@ -784,22 +824,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         vowifi_cb.uncheck()
 
     # İleriye basmadan önce tüm izin dropdown'larını bir kez daha teyit et
-    try:
-        izin_selects_final = page.locator("select:has(option:has-text('İzin Verilsin')), select:has(option:has-text('İzin Verilmesin'))")
-        for iz_idx in range(izin_selects_final.count()):
-            try:
-                iz_s = izin_selects_final.nth(iz_idx)
-                txt = iz_s.evaluate("el => el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : ''")
-                if not txt or "seçiniz" in txt.lower():
-                    iz_s.scroll_into_view_if_needed()
-                    iz_s.focus()
-                    iz_s.press("ArrowDown")
-                    iz_s.press("Tab")
-                    page.wait_for_timeout(200)
-            except Exception:
-                pass
-    except Exception:
-        pass
+    _fill_all_permissions_allowed()
     page.wait_for_timeout(500)
 
     report(75, "Müşteri ve Fatura Tercihleri onaylanıyor...")
@@ -916,23 +941,11 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
-        # İzin uyarısı çıkarsa kapat ve boş kalan izinleri seç
+        # İzin uyarısı çıkarsa kapat ve tüm izinleri 'İzin Verilsin' olarak ayarla
         try:
             if page.locator("text=Lütfen izinlerinizi tekrar kontrol ediniz").is_visible() or page.locator("text=IVIT").is_visible() or page.locator("text=TT Mobil Veri İşleme İzni").is_visible():
                 click_any_visible_tamam()
-                iz_loop = page.locator("select:has(option:has-text('İzin Verilsin')), select:has(option:has-text('İzin Verilmesin'))")
-                for iz_i in range(iz_loop.count()):
-                    try:
-                        s_el = iz_loop.nth(iz_i)
-                        s_txt = s_el.evaluate("el => el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : ''")
-                        if not s_txt or "seçiniz" in s_txt.lower():
-                            s_el.scroll_into_view_if_needed()
-                            s_el.focus()
-                            s_el.press("ArrowDown")
-                            s_el.press("Tab")
-                            page.wait_for_timeout(200)
-                    except Exception:
-                        pass
+                _fill_all_permissions_allowed()
                 page.wait_for_timeout(500)
         except Exception:
             pass
@@ -953,6 +966,14 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
+        # Glasspane engeli varsa temizle
+        page.evaluate("""() => {
+            document.querySelectorAll('.AFBlockingGlassPane, .AFModalGlassPane, [id*="WaitPopup"]').forEach(el => {
+                el.style.display = 'none';
+                if (el.parentNode) el.parentNode.removeChild(el);
+            });
+        }""")
+
         # Fatura Tercihleri veya diğer adımlarda "İleri" butonuna bas
         try:
             clicked_ileri = page.evaluate("""() => {
@@ -970,7 +991,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                 return false;
             }""")
             if not clicked_ileri:
-                ilr_btns = page.get_by_role("button", name="İleri")
+                ilr_btns = page.get_by_role("button", name=re.compile(r"İleri|Ileri", re.I))
                 for ib in range(ilr_btns.count()):
                     if ilr_btns.nth(ib).is_visible():
                         ilr_btns.nth(ib).click(force=True, timeout=2000)
