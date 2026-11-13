@@ -125,11 +125,15 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
         else:
             report(5, "Opera MTS'e giriş yapılıyor...")
 
-        browser = playwright.chromium.launch(headless=False)
-        context = browser.new_context()
+        browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
+        context = browser.new_context(no_viewport=True)
         # Tarayıcı yazdırma penceresinin (window.print) otomasyonu bloklamasını engelle
         context.add_init_script("window.print = function() {};")
         page = context.new_page()
+        try:
+            page.bring_to_front()
+        except Exception:
+            pass
         page.set_default_timeout(60000)  # Yavaş ADF istekleri için 60 saniye default timeout
         page.set_default_navigation_timeout(60000)
         if callable(opts.get("on_page_ready")):
@@ -804,9 +808,11 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             for iz_idx in range(izin_selects.count()):
                 try:
                     iz_sel = izin_selects.nth(iz_idx)
+                    if not iz_sel.is_visible():
+                        continue
                     cur_val = iz_sel.evaluate("el => el.options[el.selectedIndex] ? el.options[el.selectedIndex].text.trim() : ''")
                     if cur_val != "İzin Verilsin":
-                        iz_sel.scroll_into_view_if_needed()
+                        iz_sel.scroll_into_view_if_needed(timeout=2000)
                         try:
                             iz_sel.select_option(label="İzin Verilsin", timeout=1500)
                         except Exception:
@@ -845,21 +851,23 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             pass
 
     _fill_all_permissions_allowed()
+    print("[Müşteri Tercihleri] İzinler ayarlandı", flush=True)
 
     # Müşteri Grubu kesinlikle "Normal" olmalıdır (kullanıcının VIP yetkisi yoktur)
     try:
-        musteri_grubu = page.locator("select[name*='soc'], select[name*='customerGroup'], select:has(option:has-text('Normal'))")
+        musteri_grubu = page.locator("select:has(option:has-text('Normal'))")
         if musteri_grubu.count() > 0:
             for mg_idx in range(musteri_grubu.count()):
                 try:
                     mg = musteri_grubu.nth(mg_idx)
-                    if mg.locator("option:has-text('Normal')").count() > 0:
-                        mg.select_option(label="Normal")
+                    if mg.is_visible():
+                        mg.select_option(label="Normal", timeout=2000)
                         mg.dispatch_event("change")
                 except Exception:
                     pass
     except Exception:
         pass
+    print("[Müşteri Tercihleri] Müşteri grubu ayarlandı", flush=True)
 
     expect(page.get_by_role("checkbox", name="5N hizmetlerinden yararlanmak istiyorum")).to_be_enabled(timeout=DEFAULT_TIMEOUT)
     page.wait_for_timeout(1000)
