@@ -212,23 +212,49 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
 
     name_box = page.get_by_role("textbox", name=re.compile(r"^Adı", re.IGNORECASE)).first
     for mernis_attempt in range(3):
+        try:
+            tamam_m = page.get_by_role("button", name="Tamam")
+            if tamam_m.count() > 0 and tamam_m.first.is_visible():
+                tamam_m.first.click(timeout=2000)
+        except Exception:
+            pass
+
         wait_glasspane(timeout=10000)
         dt_box = page.get_by_role("textbox", name="Doğum Tarihi")
+        dt_box.click()
         dt_box.fill(DT)
         dt_box.press("Tab")
+        wait_glasspane(timeout=10000)
 
         tckn_box = page.get_by_role("textbox", name="TC Kimlik Numarası")
+        tckn_box.click()
         tckn_box.fill(TCKN)
         tckn_box.press("Tab")
+        wait_glasspane(timeout=10000)
+
+        try:
+            expect(dt_box).not_to_have_value("", timeout=5000)
+            expect(tckn_box).not_to_have_value("", timeout=5000)
+        except Exception:
+            pass
 
         mernis_btn = page.get_by_role("button", name="Mernis Sorgulama")
         if mernis_btn.count() > 0 and mernis_btn.is_visible():
             try:
                 expect(mernis_btn).to_be_enabled(timeout=5000)
-                mernis_btn.click(force=True)
+                mernis_btn.click()
                 wait_glasspane(timeout=30000)
             except Exception:
                 pass
+
+        # Mernis uyarı popup'ı çıktıysa kapat (ör. "Tamam")
+        try:
+            tamam_after = page.get_by_role("button", name="Tamam")
+            if tamam_after.count() > 0 and tamam_after.first.is_visible():
+                tamam_after.first.click(timeout=2000)
+                wait_glasspane(timeout=10000)
+        except Exception:
+            pass
 
         found = False
         try:
