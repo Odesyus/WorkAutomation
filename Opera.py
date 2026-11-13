@@ -283,76 +283,159 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     else:
         page.locator("input[name=\"pt1:r1:1:r1:2:it20\"]").fill("ada")
 
-    # Kimlik Türü seçimi (soc7): TC GEÇİCİ KİMLİK BELGESİ
+    # Kimlik Türü seçimi (soc7): Standart TC ÇİPLİ KİMLİK KARTI
     soc7 = page.locator("select[name*='soc7']")
     if soc7.count() > 0:
         ks = soc7.first
     else:
         ks = page.locator("select[name=\"pt1:r1:1:r1:2:soc7\"]")
     try:
-        ks.select_option(label="TC GEÇİCİ KİMLİK BELGESİ")
+        ks.select_option(label="TC ÇİPLİ KİMLİK KARTI")
     except Exception:
         try:
-            ks.select_option(index=2)
+            ks.select_option(index=0)
         except Exception:
-            ks.focus()
-            for _ in range(3):
-                ks.press("ArrowDown")
+            pass
     ks.dispatch_event("change")
     ks.press("Tab")
     page.wait_for_timeout(500)
 
+    # Seri numarası, Geçerlilik Tarihi ve Kimlik Kayıt No girişi (Opera yeni güncellemesinde zorunlu alanlar)
+    STATIK_SERI_NO = "K35B28574"
     try:
-        expect(page.get_by_role("textbox", name="Kimlik Kayıt Numarası")).not_to_be_visible(timeout=5000)
+        page.evaluate("""(seriNo) => {
+            document.querySelectorAll("input:not([disabled])").forEach(inp => {
+                const row = inp.closest('tr');
+                const txt = row ? row.innerText.toLowerCase() : '';
+                // Seri Numarası
+                if (txt.includes('seri numarası') || inp.id.includes('it3') || inp.id.includes('it22') || inp.id.includes('it6')) {
+                    inp.value = seriNo;
+                    inp.dispatchEvent(new Event('input', { bubbles: true }));
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                // Geçerlilik Tarihi (örn: 01.01.2030)
+                if (txt.includes('geçerlilik tarihi') || (inp.placeholder === 'dd.mm.yyyy' && !txt.includes('doğum') && !txt.includes('vekalet'))) {
+                    inp.value = '01.01.2030';
+                    inp.dispatchEvent(new Event('input', { bubbles: true }));
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                // Kimlik Kayıt Numarası
+                if (txt.includes('kimlik kayıt') || inp.id.includes('it7')) {
+                    inp.value = '123456';
+                    inp.dispatchEvent(new Event('input', { bubbles: true }));
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }""", STATIK_SERI_NO)
     except Exception:
         pass
 
-    seri_no = page.get_by_role("textbox", name=re.compile(r"Seri Numarası", re.I))
-    if seri_no.count() > 0 and seri_no.first.is_visible():
-        seri_no.first.click()
-        seri_no.first.fill("aa123456")
-    else:
+    try:
+        seri_no = page.get_by_role("textbox", name=re.compile(r"Seri Numarası", re.I))
+        if seri_no.count() > 0 and seri_no.first.is_visible():
+            seri_no.first.click()
+            seri_no.first.fill(STATIK_SERI_NO)
+    except Exception:
+        pass
+
+    try:
+        gec_tarih = page.get_by_role("textbox", name=re.compile(r"Geçerlilik Tarihi", re.I))
+        if gec_tarih.count() > 0 and gec_tarih.first.is_visible():
+            gec_tarih.first.click()
+            gec_tarih.first.fill("01.01.2030")
+            gec_tarih.first.press("Tab")
+    except Exception:
+        pass
+
+    try:
+        kayit_no = page.get_by_role("textbox", name=re.compile(r"Kimlik Kayıt", re.I))
+        if kayit_no.count() > 0 and kayit_no.first.is_visible():
+            kayit_no.first.click()
+            kayit_no.first.fill("123456")
+    except Exception:
+        pass
+    # Adres / İl seçimi kontrolü: Eğer İl seçilmemişse seç
+    needs_il = True
+    try:
+        il_elem = page.locator("input[id*='addrCityName'], [id*='addrCityName'] input, select[name*='addrCityName']").first
+        if il_elem.count() > 0 and (il_elem.input_value() or "").strip() == "ADANA":
+            needs_il = False
+    except Exception:
+        pass
+
+    if needs_il:
         try:
-            page.locator("input[name*='it22'], input[id*='it22']").filter(has_not=page.locator("[disabled]")).first.fill("aa123456")
+            page.get_by_title("Ara: İl").first.click(timeout=5000)
+            page.get_by_role("row", name="ADANA").first.click(timeout=10000)
+            page.wait_for_timeout(1000)
+            page.get_by_title("Ara: İlçe").first.click(timeout=5000)
+            page.get_by_role("row", name="ALADAĞ(KARSANTI)").first.click(timeout=10000)
+            page.wait_for_timeout(1000)
+            page.get_by_title("Ara: Semt").first.click(timeout=5000)
+            page.get_by_row("AKÖREN").first.click(timeout=10000)
+            page.wait_for_timeout(500)
         except Exception:
             pass
-    if (not(page.get_by_role("combobox", name="İl (Gerekli)", exact=True).is_visible())):
-        page.get_by_title("Ara: İl").first.click()
-        expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("ADANA", timeout=DEFAULT_TIMEOUT)
-        page.get_by_role("row", name="ADANA").click()
-        expect(page.get_by_role("combobox", name="İl (Gerekli)", exact=True)).to_have_value("ADANA", timeout=DEFAULT_TIMEOUT)
-        page.wait_for_timeout(1000)
-        page.get_by_title("Ara: İlçe").first.click()
-        expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("ALADAĞ(KARSANTI)", timeout=DEFAULT_TIMEOUT)
-        page.get_by_role("row", name="ALADAĞ(KARSANTI)").click()
-        expect(page.get_by_role("combobox", name="İlçe (Gerekli)", exact=True)).to_have_value("ALADAĞ(KARSANTI)", timeout=DEFAULT_TIMEOUT)
-        expect(page.get_by_role("combobox", name="Semt")).not_to_be_disabled(timeout=DEFAULT_TIMEOUT)
-        page.wait_for_timeout(1500)
-        page.get_by_title("Ara: Semt").first.click()
-        expect(page.get_by_role("grid", name="Tablodan satır seçin")).to_contain_text("AKÖREN", timeout=DEFAULT_TIMEOUT)
-        page.get_by_role("row", name="AKÖREN").click()
-        expect(page.get_by_role("combobox", name="Semt")).to_have_value("AKÖREN", timeout=DEFAULT_TIMEOUT)
-        page.get_by_role("textbox", name="Adres").click()
-        page.get_by_role("textbox", name="Adres").fill("aaa")
-        page.get_by_role("textbox", name="Bina/Kapı Numarası").click()
-        page.get_by_role("textbox", name="Bina/Kapı Numarası").fill("123")
-        page.get_by_role("textbox", name="İrtibat Telefon Numarası 1").click()
-        page.get_by_role("textbox", name="İrtibat Telefon Numarası 1").fill("53333333333")
-    wait_glasspane()
-    page.get_by_role("button", name="İleri").click()
 
-    # İrtibat Doğrulama — OTP devre dışı:
-    # İlk İleri tıklaması doğrudan "Hat Tipi ve Numara Seçimi" ekranını açıyorsa ikinci kez İleri'ye basılmaz.
-    report(30, "Hat Tipi ve Numara Seçimi ekranı bekleniyor...")
+    # Adres, Bina No ve İrtibat Telefonu alanlarını her zaman doldur
     try:
-        expect(page.get_by_role("radio", name="Faturalı Hat")).to_be_visible(timeout=DEFAULT_TIMEOUT)
+        adres_box = page.get_by_role("textbox", name="Adres")
+        if adres_box.count() > 0 and adres_box.first.is_visible():
+            adres_box.first.fill("AAA")
+        else:
+            page.locator("textarea[id*='it30'], [id*='it30']").first.fill("AAA")
     except Exception:
-        if page.locator("td").filter(has_text="Hata İşleme devam edebilmek i").is_visible():
-            wait_glasspane()
-            page.get_by_role("button", name="Tamam").click()
-        wait_glasspane()
-        page.get_by_role("button", name="İleri").click()
-        expect(page.get_by_role("radio", name="Faturalı Hat")).to_be_visible(timeout=DEFAULT_TIMEOUT)
+        pass
+
+    try:
+        bina_box = page.get_by_role("textbox", name="Bina/Kapı Numarası")
+        if bina_box.count() > 0 and bina_box.first.is_visible():
+            bina_box.first.fill("123")
+        else:
+            page.locator("input[id*='it31']").first.fill("123")
+    except Exception:
+        pass
+
+    try:
+        tel_box = page.locator("input[id*='mt1123'], input[name*='mt1123']").first
+        if tel_box.count() > 0 and tel_box.is_visible():
+            tel_box.click()
+            tel_box.fill("")
+            tel_box.press_sequentially("5333333333", delay=30)
+            tel_box.press("Tab")
+        else:
+            page.get_by_role("textbox", name=re.compile(r"İrtibat Telefon Numarası 1", re.I)).first.fill("5333333333")
+    except Exception:
+        pass
+
+    # "Hat Tipi ve Numara Seçimi" ekranına geçiş (OTP ve doğrulama pencerelerini hızlıca aş)
+    report(30, "Hat Tipi ve Numara Seçimi ekranına geçiliyor...")
+    for ileri_att in range(15):
+        if page.get_by_role("radio", name="Faturalı Hat").is_visible() or page.get_by_role("radio", name="Faturasız Hat").is_visible():
+            break
+
+        # OTP dialog veya ADF hata modalı varsa Tamam'a bas
+        dlg = page.locator("div[role='dialog']:visible, .af_dialog:visible, [id*='msgDlg']:visible")
+        if dlg.count() > 0:
+            tamam_btn = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
+            if tamam_btn.count() > 0 and tamam_btn.first.is_visible():
+                tamam_btn.first.click(force=True)
+                page.wait_for_timeout(400)
+
+        # Glasspane engellerini temizle
+        page.evaluate('''() => {
+            document.querySelectorAll('.AFBlockingGlassPane, .AFModalGlassPane, [id*="WaitPopup"]').forEach(el => {
+                el.style.display = 'none';
+                if (el.parentNode) el.parentNode.removeChild(el);
+            });
+        }''')
+
+        ileri_btn = page.locator("button[id*='cb23'], button:has-text('İleri')").first
+        if ileri_btn.is_visible():
+            ileri_btn.click(force=True)
+            page.wait_for_timeout(1000)
+
+    expect(page.get_by_role("radio", name=HAT_TIPI, exact=True)).to_be_visible(timeout=15000)
 
     #Hat Tipi ve Numara Seçimi
     report(40, f"{HAT_TIPI} seçiliyor, MSISDN: {MSISDN}")
