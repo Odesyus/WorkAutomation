@@ -288,10 +288,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     else:
         page.locator("input[name=\"pt1:r1:1:r1:2:it20\"]").fill("ada")
 
-    # Kimlik Türü seçimi (soc7): Standart TC ÇİPLİ KİMLİK KARTI
-    # Not: Oracle ADF ilk boş değerden doğrudan "TC ÇİPLİ KİMLİK KARTI" seçildiğinde
-    # PPR tetiklemeyip Geçerlilik Tarihi alanını gizli bırakabiliyor. Bu nedenle önce
-    # başka bir seçenek üzerinden PPR tetikleyip ardından "TC ÇİPLİ KİMLİK KARTI" seçiyoruz.
+    # Kimlik Türü seçimi (soc7): Kesinlikle TC ÇİPLİ KİMLİK KARTI (value='0')
     wait_glasspane()
     def _get_soc7():
         loc = page.locator("select[name*='soc7']")
@@ -303,7 +300,8 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             ks = _get_soc7()
             ks.focus()
             ks.click()
-            ks.select_option(label="TC GEÇİCİ KİMLİK BELGESİ")
+            # Boş değerden doğrudan 0'a geçiş ADF PPR tetiklemezse önce value='1' üzerinden PPR tetikle
+            ks.select_option(value="1")
             ks.dispatch_event("change")
             ks.press("Tab")
             page.wait_for_timeout(1000)
@@ -315,7 +313,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         try:
             ks.select_option(label="TC ÇİPLİ KİMLİK KARTI")
         except Exception:
-            ks.select_option(index=0)
+            ks.select_option(value="0")
         ks.dispatch_event("change")
         ks.press("Tab")
         page.wait_for_timeout(1000)
@@ -383,45 +381,29 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         pass
 
     # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
+    # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
+    def _pick_addr_lov(title, row_name, wait_after_ms=2000):
+        wait_glasspane()
+        btn = page.get_by_title(title).first
+        btn.scroll_into_view_if_needed()
+        btn.click(timeout=10000)
+        page.wait_for_timeout(1500)
+        row = page.get_by_role("row", name=row_name).first
+        row.wait_for(state="visible", timeout=10000)
+        try:
+            row.click(timeout=4000)
+        except Exception:
+            row.click(force=True)
+        page.wait_for_timeout(wait_after_ms)
+        wait_glasspane()
+
     try:
         il_input = page.locator("input[id*='addrCityName'], [id*='addrCityName'] input").first
         il_val = (il_input.input_value() or "").strip() if il_input.count() > 0 else ""
         if il_val != "ADANA":
-            print("[ADRES] İl seçiliyor (ADANA)...", flush=True)
-            ara_il = page.get_by_title("Ara: İl").first
-            ara_il.scroll_into_view_if_needed()
-            ara_il.click(force=True)
-            page.wait_for_timeout(1500)
-            row_il = page.get_by_role("row", name="ADANA").first
-            row_il.wait_for(state="visible", timeout=10000)
-            row_il.click(force=True)
-            page.wait_for_timeout(1500)
-            wait_glasspane()
-
-        ilce_input = page.locator("input[id*='addrSubPrvnc'], [id*='addrSubPrvnc'] input").first
-        ilce_val = (ilce_input.input_value() or "").strip() if ilce_input.count() > 0 else ""
-        if "ALADAĞ" not in ilce_val:
-            print("[ADRES] İlçe seçiliyor (ALADAĞ(KARSANTI))...", flush=True)
-            ara_ilce = page.get_by_title("Ara: İlçe").first
-            ara_ilce.scroll_into_view_if_needed()
-            ara_ilce.click(force=True)
-            page.wait_for_timeout(1500)
-            row_ilce = page.get_by_role("row", name="ALADAĞ(KARSANTI)").first
-            row_ilce.wait_for(state="visible", timeout=10000)
-            row_ilce.click(force=True)
-            page.wait_for_timeout(2000)
-            wait_glasspane()
-
-        print("[ADRES] Semt seçiliyor (AKÖREN)...", flush=True)
-        ara_semt = page.get_by_title("Ara: Semt").first
-        ara_semt.scroll_into_view_if_needed()
-        ara_semt.click(force=True)
-        page.wait_for_timeout(1500)
-        row_semt = page.get_by_role("row", name="AKÖREN").first
-        row_semt.wait_for(state="visible", timeout=10000)
-        row_semt.click(force=True)
-        page.wait_for_timeout(1500)
-        wait_glasspane()
+            _pick_addr_lov("Ara: İl", "ADANA", 2000)
+        _pick_addr_lov("Ara: İlçe", "ALADAĞ(KARSANTI)", 2500)
+        _pick_addr_lov("Ara: Semt", "AKÖREN", 2000)
         print("[ADRES] İl/İlçe/Semt seçimi tamamlandı.", flush=True)
     except Exception as e:
         print(f"[ADRES SEÇİM HATA] {e}", flush=True)
