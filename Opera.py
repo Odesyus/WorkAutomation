@@ -20,55 +20,35 @@ import ICCID as ICCID_Func
 import CMPDB as OTP
 import config
 
-# Test ICCID listesi (Yalnızca 37157378 üzerindeki temiz hatlar)
-def get_user_clean_iccids():
-    try:
-        root_dir = os.path.dirname(os.path.abspath(__file__))
-        cache_path = os.path.join(root_dir, "iccid_cache.json")
-        if os.path.exists(cache_path):
-            with open(cache_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            user_iccids = [
-                str(x.get("iccid")).strip()
-                for x in data
-                if "37157378" in str(x.get("owner", "")) and str(x.get("iccid", "")).strip()
-            ]
-            if user_iccids:
-                return user_iccids
-    except Exception:
-        pass
-    return [
-        '89902860372001744567',
-        '89902860372001744575',
-        '89902860372001744583',
-        '89902860372001744591',
-        '89902860372001744609',
-        '89902860372001744617',
-        '89902860372001744823',
-        '89902860372001744831',
-        '89902860372001744849',
-        '89902860372001745036',
-    ]
-
-ICCID_LIST = get_user_clean_iccids()
-
-ICCID_Index = 0
 DEFAULT_TIMEOUT = 150000  # 150 saniye (2.5 dk - yavaş Opera geçişleri için)
 
 
 def main():
-    global ICCID_Index
     with sync_playwright() as playwright:
         Merns = MernsDB.get_Merns()
-        #Data = ICCID_Func.get_ICCID(playwright)
-        #Data_ICCID = Data[ICCID_Index]["ICCID"]
-        # Kullanımda olan ICCID'leri atlayarak sıradakini dene
-        while ICCID_Index < len(ICCID_LIST):
-            Data_ICCID = ICCID_LIST[ICCID_Index]
-            sonuc = run(playwright, Merns["TCKN"], Merns["DOĞUM TARİHİ"], Data_ICCID)
+        iccid_list = []
+        try:
+            root_dir = os.path.dirname(os.path.abspath(__file__))
+            cache_path = os.path.join(root_dir, "iccid_cache.json")
+            if os.path.exists(cache_path):
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                iccid_list = [
+                    str(x.get("iccid")).strip()
+                    for x in data
+                    if x.get("status") == "clean" and str(x.get("iccid", "")).strip()
+                ]
+        except Exception:
+            pass
+
+        if not iccid_list:
+            data = ICCID_Func.get_ICCID(playwright)
+            iccid_list = [str(item.get("ICCID", "")).strip() for item in data if item.get("ICCID")]
+
+        for data_iccid in iccid_list:
+            sonuc = run(playwright, Merns["TCKN"], Merns["DOĞUM TARİHİ"], data_iccid)
             if sonuc != 'ICCID_IN_USE':
                 return
-            ICCID_Index = ICCID_Index + 1
         print("Tüm ICCID'ler denendi, uygun ICCID bulunamadı.")
 
 
