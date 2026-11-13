@@ -1035,12 +1035,11 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
 
     # Sipariş / İşlem Özeti ekranına ulaşana kadar ilerle (Fatura Tercihleri ve Uyarı pencerelerini geç)
     for _ in range(50):
-        # 1. Hedef ekrana varıldı mı?
+        # 1. Hedef ekrana varıldı mı? (Not: Üst train barındaki "Sipariş Özeti" td'si her sayfada
+        # görünür olduğu için asıl gösterge "Sözleşme Özeti Gönder" butonudur.)
         if page.get_by_role("button", name="Sözleşme Özeti Gönder").is_visible():
+            print("[FATURA/TERCİH] Sipariş Özeti ekranına ulaşıldı.", flush=True)
             break
-        if page.locator("td").filter(has_text=re.compile(r"(İşlem|Sipariş)\s*Özeti", re.IGNORECASE)).count() > 0:
-            if page.locator("td").filter(has_text=re.compile(r"(İşlem|Sipariş)\s*Özeti", re.IGNORECASE)).first.is_visible():
-                break
 
         # Çıkış onay penceresi yanlışlıkla açıldıysa Hayır'a bas
         try:
