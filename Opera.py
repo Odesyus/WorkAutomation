@@ -1105,16 +1105,27 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
-        # Hâlâ Tamam butonu görünürse İleri'ye basmadan bir sonraki turda tekrar kapatmayı dene
-        still_tamam = False
+        # Hâlâ Tamam butonu görünürse: sadece Fatura Tercihleri uyarı popup'ı ("Mobil ödeme..." / "e-fatura...")
+        # değilse İleri'ye basmadan bir sonraki turda kapatmayı dene
+        is_fatura_uyari = False
         try:
-            t_loc2 = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
-            for ti in range(t_loc2.count()):
-                if t_loc2.nth(ti).is_visible():
-                    still_tamam = True
-                    break
+            is_fatura_uyari = (
+                page.locator("text=Mobil ödeme tercihini seçmediniz").is_visible()
+                or page.locator("text=e-fatura talimatı vermeyi öneriniz").is_visible()
+            )
         except Exception:
             pass
+
+        still_tamam = False
+        if not is_fatura_uyari:
+            try:
+                t_loc2 = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
+                for ti in range(t_loc2.count()):
+                    if t_loc2.nth(ti).is_visible():
+                        still_tamam = True
+                        break
+            except Exception:
+                pass
         if still_tamam:
             page.wait_for_timeout(500)
             continue
