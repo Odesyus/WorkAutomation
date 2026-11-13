@@ -410,19 +410,37 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             il_inp.fill("ADANA")
             il_inp.press("Tab")
             expect(il_inp).to_have_value("ADANA", timeout=DEFAULT_TIMEOUT)
+            try:
+                page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass
             wait_glasspane()
 
         expect(ilce_inp).to_be_enabled(timeout=DEFAULT_TIMEOUT)
-        ilce_inp.click()
-        ilce_inp.fill("ALADAĞ(KARSANTI)")
-        ilce_inp.press("Tab")
-        expect(ilce_inp).to_have_value("ALADAĞ(KARSANTI)", timeout=DEFAULT_TIMEOUT)
-        wait_glasspane()
+        for _ilce_try in range(2):
+            ilce_inp.click()
+            ilce_inp.fill("ALADAĞ(KARSANTI)")
+            ilce_inp.press("Tab")
+            try:
+                page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass
+            wait_glasspane()
+            try:
+                expect(semt_inp).to_be_enabled(timeout=5000)
+                expect(ilce_inp).to_have_value("ALADAĞ(KARSANTI)", timeout=3000)
+                break
+            except Exception:
+                pass
 
         expect(semt_inp).to_be_enabled(timeout=DEFAULT_TIMEOUT)
         semt_inp.click()
         semt_inp.fill("AKÖREN")
         semt_inp.press("Tab")
+        try:
+            page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass
         expect(semt_inp).to_have_value("AKÖREN", timeout=DEFAULT_TIMEOUT)
         wait_glasspane()
         print("[ADRES] İl/İlçe/Semt seçimi tamamlandı.", flush=True)
