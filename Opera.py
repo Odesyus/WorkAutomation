@@ -1079,7 +1079,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
-        # Uyarı / Mesaj popup'ı varsa ("Mobil ödeme...", "E-fatura..." vb.) Tamam'a tıkla ve devam et
+        # Uyarı / Mesaj popup'ı varsa ("Mobil ödeme...", "E-fatura..." vb.) önce Tamam'a basıp kapanmasını bekle
         tamam_vis = False
         try:
             t_loc = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
@@ -1090,8 +1090,9 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
         if tamam_vis or page.locator("[id*='msgDlg']:visible, div[role='dialog']:has-text('Tamam'):visible, .af_dialog:visible, .af_panelWindow:visible").count() > 0:
+            print("[FATURA/TERCİH] Uyarı popup'ı kapatılıyor (Tamam)...", flush=True)
             click_any_visible_tamam()
-            page.wait_for_timeout(600)
+            page.wait_for_timeout(800)
             wait_glasspane()
 
         # Kapat iconu / butonu varsa
@@ -1104,6 +1105,20 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
         except Exception:
             pass
 
+        # Hâlâ Tamam butonu görünürse İleri'ye basmadan bir sonraki turda tekrar kapatmayı dene
+        still_tamam = False
+        try:
+            t_loc2 = page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*Tamam\s*$", re.I))
+            for ti in range(t_loc2.count()):
+                if t_loc2.nth(ti).is_visible():
+                    still_tamam = True
+                    break
+        except Exception:
+            pass
+        if still_tamam:
+            page.wait_for_timeout(500)
+            continue
+
         # Glasspane engeli varsa temizle
         page.evaluate("""() => {
             document.querySelectorAll('.AFBlockingGlassPane, .AFModalGlassPane, [id*="WaitPopup"]').forEach(el => {
@@ -1112,21 +1127,39 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             });
         }""")
 
-        # Fatura Tercihleri veya diğer adımlarda "İleri" butonuna gerçek tıklama ile bas
+        # Fatura Tercihleri veya diğer adımlarda en alttaki aktif "İleri" butonuna bas
         try:
             clicked_ileri = False
-            ilr_btns = page.get_by_role("button", name=re.compile(r"^\s*İleri\s*$|^\s*Ileri\s*$", re.I))
-            for ib in range(ilr_btns.count()):
-                btn = ilr_btns.nth(ib)
-                if btn.is_visible() and btn.is_enabled():
-                    btn.scroll_into_view_if_needed()
-                    btn.click(timeout=2000)
-                    clicked_ileri = True
+            visible_ileri = []
+            for sel in [
+                page.get_by_role("button", name=re.compile(r"İleri|Ileri", re.I)),
+                page.locator("button, a, div[role='button']").filter(has_text=re.compile(r"^\s*İleri\s*$|^\s*Ileri\s*$", re.I)),
+            ]:
+                for ib in range(sel.count()):
+                    b = sel.nth(ib)
+                    try:
+                        if b.is_visible() and b.is_enabled():
+                            visible_ileri.append(b)
+                    except Exception:
+                        pass
+                if visible_ileri:
                     break
+
+            if visible_ileri:
+                target_btn = visible_ileri[-1]
+                target_btn.scroll_into_view_if_needed()
+                try:
+                    target_btn.click(timeout=2500)
+                except Exception:
+                    target_btn.click(force=True, timeout=2000)
+                clicked_ileri = True
+                print("[FATURA/TERCİH] İleri butonuna tıklandı.", flush=True)
+
             if not clicked_ileri:
                 page.evaluate("""() => {
                     const candidates = Array.from(document.querySelectorAll("button, input[type='button'], a, [role='button']"));
-                    for (const el of candidates) {
+                    for (let i = candidates.length - 1; i >= 0; i--) {
+                        const el = candidates[i];
                         const txt = (el.innerText || el.value || '').trim();
                         if (txt === 'İleri' || txt === 'Ileri') {
                             const r = el.getBoundingClientRect();
