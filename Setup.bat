@@ -7,7 +7,7 @@ if exist "%SETUP_PS1%" goto :run_setup
 
 echo [*] Kurulum arayuzu GitHub uzerinden hazirlaniyor, lutfen bekleyin...
 set "SETUP_PS1=%TEMP%\TelekomOtomasyon_Setup.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/Odesyus/WorkAutomation/main/setup/Setup.ps1', '$env:SETUP_PS1')"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/Odesyus/WorkAutomation/main/setup/Setup.ps1', $env:SETUP_PS1)"
 
 if not exist "%SETUP_PS1%" (
     echo [HATA] Setup.ps1 indirilemedi. Internet baglantinizi kontrol edin.

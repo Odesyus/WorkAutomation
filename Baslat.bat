@@ -7,17 +7,18 @@ echo       TELEKOM OTOMASYON PLATFORMU BASLATICI
 echo ===================================================
 echo.
 
+if exist "venv\Scripts\activate.bat" goto :venv_ok
+
 python --version >nul 2>&1
 if not errorlevel 1 goto :python_ok
 
 echo [HATA] Bilgisayarinizda Python kurulu bulunamadi!
-echo Lutfen once Kurulum.bat dosyasini calistirin.
+echo Lutfen once Setup.bat dosyasini calistirin.
 echo.
 pause
 exit /b 1
 
 :python_ok
-if exist "venv\Scripts\activate.bat" goto :venv_ok
 
 echo [*] Ilk calistirma tespit edildi.
 echo [*] Sanal ortam olusturuluyor, lutfen bekleyin...

@@ -155,6 +155,7 @@ $scriptBlock = {
     param($sync, $TargetDir, $CreateShortcut, $LaunchAfter, $RepoUrl, $PythonUrl, $GitFallbackUrl, $OracleUrl)
 
     function Add-Log([string]$msg) {
+        if ($sync.Form.IsDisposed) { return }
         $ts = (Get-Date).ToString("HH:mm:ss")
         $line = "[$ts] $msg`r`n"
         $sync.Form.Invoke([Action]{
@@ -165,6 +166,7 @@ $scriptBlock = {
     }
 
     function Set-Step([int]$pct, [string]$statusText) {
+        if ($sync.Form.IsDisposed) { return }
         $sync.Form.Invoke([Action]{
             $sync.Progress.Value = [Math]::Min(100, [Math]::Max(0, $pct))
             $sync.Status.Text = $statusText
@@ -192,14 +194,17 @@ $scriptBlock = {
             $ver = & $cmd.Source --version 2>&1
             if ($LASTEXITCODE -eq 0 -and "$ver" -match "Python 3") { return $cmd.Source }
         }
+        $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+        if ($pyLauncher) {
+            $pyPath = & $pyLauncher.Source -3 -c "import sys; print(sys.executable)" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $pyPath -and (Test-Path $pyPath.Trim())) { return $pyPath.Trim() }
+        }
         $candidates = @(
-            "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-            "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-            "$env:ProgramFiles\Python312\python.exe",
-            "$env:ProgramFiles\Python311\python.exe"
-        )
+            Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+            Get-ChildItem -Path "$env:ProgramFiles\Python3*\python.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+        ) | Sort-Object -Descending
         foreach ($c in $candidates) {
-            if (Test-Path $c) { return $c }
+            if ($c -and (Test-Path $c)) { return $c }
         }
         return $null
     }
@@ -210,10 +215,11 @@ $scriptBlock = {
         if ($cmd) { return $cmd.Source }
         $candidates = @(
             "$env:ProgramFiles\Git\cmd\git.exe",
+            "${env:ProgramFiles(x86)}\Git\cmd\git.exe",
             "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe"
         )
         foreach ($c in $candidates) {
-            if (Test-Path $c) { return $c }
+            if ($c -and (Test-Path $c)) { return $c }
         }
         return $null
     }
@@ -313,7 +319,13 @@ $scriptBlock = {
                 & $gitExe -C $TargetDir remote remove origin 2>&1 | Out-Null
                 & $gitExe -C $TargetDir remote add origin $RepoUrl 2>&1 | Out-Null
                 & $gitExe -C $TargetDir fetch origin main 2>&1 | ForEach-Object { Add-Log "    $_" }
-                & $gitExe -C $TargetDir checkout -B main origin/main 2>&1 | ForEach-Object { Add-Log "    $_" }
+                if ($LASTEXITCODE -ne 0) {
+                    throw "GitHub deposuna baglanilamadi."
+                }
+                & $gitExe -C $TargetDir checkout -f -B main origin/main 2>&1 | ForEach-Object { Add-Log "    $_" }
+                if ($LASTEXITCODE -ne 0) {
+                    throw "GitHub dosyalari klasore yerlestirilemedi."
+                }
                 & $gitExe -C $TargetDir branch --set-upstream-to=origin/main main 2>&1 | Out-Null
             }
         }
@@ -445,6 +457,13 @@ $scriptBlock = {
     }
 }
 
+$form.Add_FormClosing({
+    if (-not $btnClose.Enabled) {
+        $_.Cancel = $true
+        [System.Windows.Forms.MessageBox]::Show("Kurulum devam ediyor, lutfen bitmesini bekleyin.", "Uyari", "OK", "Warning") | Out-Null
+    }
+})
+
 $btnStart.Add_Click({
     $target = $txtPath.Text.Trim()
     if ([string]::IsNullOrWhiteSpace($target)) {
@@ -454,6 +473,7 @@ $btnStart.Add_Click({
 
     $btnStart.Enabled = $false
     $btnBrowse.Enabled = $false
+    $btnClose.Enabled = $false
     $txtPath.Enabled = $false
     $txtLog.Clear()
 
