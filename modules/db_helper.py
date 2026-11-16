@@ -8,9 +8,9 @@ if ROOT not in sys.path:
 from core import config
 
 # Oracle Instant Client (Thick mode) başlatma (drivers/ veya kök dizin)
-CLIENT_DIR = os.path.join(ROOT, "drivers", "instantclient_19_25")
+CLIENT_DIR = os.path.join(config.DRIVERS_DIR, "instantclient_19_25")
 if not os.path.isdir(CLIENT_DIR):
-    CLIENT_DIR = os.path.join(ROOT, "instantclient_19_25")
+    CLIENT_DIR = os.path.join(config.ROOT_DIR, "instantclient_19_25")
 try:
     oracledb.init_oracle_client(lib_dir=CLIENT_DIR)
 except Exception:

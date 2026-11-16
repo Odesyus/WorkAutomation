@@ -103,7 +103,8 @@ def _run_multi_activation(task_id, items, options=None):
         from modules import iccid_module
         import importlib
         from core import Opera
-        importlib.reload(Opera)
+        if not getattr(sys, 'frozen', False):
+            importlib.reload(Opera)
 
         with sync_playwright() as playwright:
             for idx, item in enumerate(items):
@@ -258,7 +259,8 @@ def _run_activation(task_id, tckn, dt, iccid, options=None):
             from modules import iccid_module
             import importlib
             from core import Opera
-            importlib.reload(Opera)
+            if not getattr(sys, 'frozen', False):
+                importlib.reload(Opera)
 
             with sync_playwright() as playwright:
                 sonuc = Opera.run(playwright, tckn, dt, iccid, progress=progress, options=run_opts)
@@ -326,8 +328,8 @@ def take_task_screenshot(task_id):
         return {'success': False, 'error': 'Aktif bir tarayıcı sayfası bulunamadı.'}
 
     try:
-        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        shots_dir = os.path.join(root_dir, "static", "screenshots")
+        from core import config
+        shots_dir = os.path.join(config.BUNDLE_DIR, "static", "screenshots")
         os.makedirs(shots_dir, exist_ok=True)
         fname = f"opera_snap_{int(time.time() * 1000)}.png"
         fpath = os.path.join(shots_dir, fname)

@@ -41,6 +41,9 @@ ENV/
 drivers/
 instantclient_19_25/
 instantclient*/
+build/
+dist/
+*.spec
 *.dll
 *.sym
 *.jar

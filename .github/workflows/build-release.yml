@@ -1,0 +1,49 @@
+name: Build Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies and Playwright Chromium
+        run: |
+          python -m venv venv
+          .\venv\Scripts\python.exe -m pip install --upgrade pip
+          .\venv\Scripts\python.exe -m pip install -r requirements.txt pyinstaller
+          .\venv\Scripts\python.exe -m playwright install chromium
+
+      - name: Download Oracle Instant Client
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path "drivers" -Force | Out-Null
+          $zip = "$env:TEMP\instantclient.zip"
+          Invoke-WebRequest -Uri "https://download.oracle.com/otn_software/nt/instantclient/1925000/instantclient-basiclite-windows.x64-19.25.0.0.0dbru.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath "drivers" -Force
+
+      - name: Build EXE and Package ZIP
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\setup\build_exe.ps1
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/TelekomOtomasyon-win64.zip
+          generate_release_notes: true

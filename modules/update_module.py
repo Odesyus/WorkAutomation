@@ -9,8 +9,53 @@ import sys
 import os
 import subprocess
 import time
+import shutil
+import tempfile
+import zipfile
+import threading
+import requests
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _BASE_DIR not in sys.path:
+    sys.path.insert(0, _BASE_DIR)
+from core import config
+
+ROOT_DIR = config.ROOT_DIR
+
+
+def _parse_version(tag):
+    """'v1.0.2' -> (1, 0, 2) tuple olarak ayrıştırır."""
+    clean = str(tag or "").strip().lstrip("vV")
+    parts = []
+    for p in clean.split("."):
+        digits = "".join(ch for ch in p if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def _get_latest_release():
+    """GitHub Releases API üzerinden en son sürüm bilgisini çeker."""
+    url = f"https://api.github.com/repos/{config.GITHUB_REPO}/releases/latest"
+    resp = requests.get(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "TelekomOtomasyon"}, timeout=15)
+    if resp.status_code == 404:
+        return None, "Henüz GitHub Releases üzerinde yayınlanmış bir EXE sürümü bulunmuyor."
+    resp.raise_for_status()
+    data = resp.json()
+    zip_url = None
+    for asset in data.get("assets", []):
+        name = str(asset.get("name", "")).lower()
+        if name.endswith(".zip"):
+            zip_url = asset.get("browser_download_url")
+            break
+    return {
+        "tag": data.get("tag_name", ""),
+        "name": data.get("name") or data.get("tag_name", ""),
+        "published_at": str(data.get("published_at", ""))[:10],
+        "body": data.get("body", ""),
+        "zip_url": zip_url,
+    }, None
 
 
 def _run_git_command(args, timeout=25):
@@ -63,17 +108,53 @@ def _ensure_git_repo():
 
 def get_current_version_info():
     """Mevcut commit ve sürüm özetini döndürür."""
+    if config.IS_FROZEN:
+        return f"v{config.APP_VERSION} (EXE)"
     _ensure_git_repo()
     res = _run_git_command(["log", "-1", "--format=%h - %s (%cd)", "--date=short"], timeout=5)
     if res['success'] and res['stdout']:
         return res['stdout']
-    return "Bilinmeyen Sürüm"
+    return f"v{config.APP_VERSION}"
 
 
 def check_for_updates():
     """
-    GitHub 'origin main' dalından yeni commit olup olmadığını denetler.
+    EXE modunda GitHub Releases API'den, kaynak kod modunda 'origin main' dalından
+    yeni güncelleme olup olmadığını denetler.
     """
+    if config.IS_FROZEN:
+        try:
+            rel, err = _get_latest_release()
+            if err:
+                return {'has_update': False, 'message': err, 'current_version': get_current_version_info()}
+            latest_ver = _parse_version(rel['tag'])
+            curr_ver = _parse_version(config.APP_VERSION)
+            if latest_ver <= curr_ver:
+                return {
+                    'has_update': False,
+                    'message': 'Uygulamanız en güncel sürümde.',
+                    'current_version': get_current_version_info()
+                }
+            return {
+                'has_update': True,
+                'commits_behind': 1,
+                'commits': [{
+                    'hash': rel['tag'],
+                    'title': rel['name'],
+                    'date': rel['published_at']
+                }],
+                'current_version': get_current_version_info(),
+                'remote_hash': rel['tag'],
+                'download_url': rel['zip_url'],
+                'message': f"Yeni sürüm mevcut: {rel['tag']}"
+            }
+        except Exception as e:
+            return {
+                'has_update': False,
+                'error': f'Sürüm denetlenirken hata oluştu: {e}',
+                'current_version': get_current_version_info()
+            }
+
     # 0. .git klasörü yoksa (ZIP'ten açılmışsa) otomatik bağla
     _ensure_git_repo()
 
@@ -138,9 +219,59 @@ def check_for_updates():
 
 def apply_update():
     """
-    GitHub'dan 'git pull' ile en güncel kodu çeker,
-    gerekli python paketlerini (requirements.txt) ve Playwright tarayıcısını kurar.
+    EXE modunda GitHub Releases'tan yeni paketi indirip yeniden başlatır;
+    kaynak kod modunda 'git pull' ile günceller.
     """
+    if config.IS_FROZEN:
+        try:
+            rel, err = _get_latest_release()
+            if err:
+                return {'success': False, 'error': err}
+            if not rel.get('zip_url'):
+                return {'success': False, 'error': 'Son sürümde indirilebilir .zip paketi bulunamadı.'}
+
+            tmp_dir = tempfile.mkdtemp(prefix="telekom_upd_")
+            zip_path = os.path.join(tmp_dir, "update.zip")
+            extract_dir = os.path.join(tmp_dir, "extracted")
+
+            with requests.get(rel['zip_url'], stream=True, timeout=180) as r:
+                r.raise_for_status()
+                with open(zip_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(extract_dir)
+
+            # ZIP icinde tek bir alt klasor varsa onu kaynak olarak kullan
+            src_dir = extract_dir
+            entries = os.listdir(extract_dir)
+            if len(entries) == 1 and os.path.isdir(os.path.join(extract_dir, entries[0])):
+                src_dir = os.path.join(extract_dir, entries[0])
+
+            exe_path = sys.executable
+            bat_path = os.path.join(tempfile.gettempdir(), "apply_telekom_update.bat")
+            bat_content = f"""@echo off
+timeout /t 2 /nobreak >nul
+robocopy "{src_dir}" "{ROOT_DIR}" /E /IS /IT /XD config data /XF local_config.json users.json >nul
+rmdir /s /q "{tmp_dir}" >nul 2>&1
+start "" "{exe_path}"
+del "%~f0"
+"""
+            with open(bat_path, "w", encoding="utf-8") as bf:
+                bf.write(bat_content)
+
+            subprocess.Popen(["cmd", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW)
+            threading.Timer(0.8, lambda: os._exit(0)).start()
+            return {
+                'success': True,
+                'message': f"Sürüm {rel['tag']} indirildi, uygulama güncellenip yeniden başlatılıyor...",
+                'details': [f"Yeni sürüm: {rel['tag']}"]
+            }
+        except Exception as e:
+            return {'success': False, 'error': f'EXE güncelleme hatası: {e}'}
+
     logs = []
 
     # 0. Git repo bağlantısını garantiye al

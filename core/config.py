@@ -7,13 +7,25 @@ Bireysel veriler 'local_config.json' ve 'users.json' içinde tutulur, Git'e akta
 """
 
 import os
+import sys
 import json
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP_VERSION = "1.0.0"
+GITHUB_REPO = "Odesyus/WorkAutomation"
+IS_FROZEN = getattr(sys, "frozen", False)
+
+ROOT_DIR = os.path.dirname(sys.executable) if IS_FROZEN else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BUNDLE_DIR = getattr(sys, "_MEIPASS", ROOT_DIR)
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
 DATA_DIR = os.path.join(ROOT_DIR, "data")
+DRIVERS_DIR = os.path.join(ROOT_DIR, "drivers")
 os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# Paketlenmis (bundled) Playwright Chromium varsa otomatik kullan
+_BUNDLED_PW_DIR = os.path.join(DRIVERS_DIR, "ms-playwright")
+if os.path.isdir(_BUNDLED_PW_DIR) and "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _BUNDLED_PW_DIR
 
 LOCAL_CONFIG_FILE = os.path.join(CONFIG_DIR, "local_config.json")
 LOCAL_CONFIG_EXAMPLE = os.path.join(CONFIG_DIR, "local_config.example.json")

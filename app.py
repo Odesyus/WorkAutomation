@@ -4,14 +4,21 @@ Otomasyon Dashboard — Flask ana uygulaması.
 Çalıştırma:  python app.py   ->  http://localhost:5000
 """
 
+import os
 import re
+import threading
+import webbrowser
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 
 from core import config
 from modules import opera_module, iccid_module, mdm_es_module, db_helper, auth_module, update_module
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=os.path.join(config.BUNDLE_DIR, 'templates'),
+    static_folder=os.path.join(config.BUNDLE_DIR, 'static')
+)
 app.secret_key = config.get_secret_key()
 app.permanent_session_lifetime = timedelta(days=3650)  # Sınırsız / 10 yıl oturum süresi
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -552,4 +559,8 @@ def api_system_apply_update():
 if __name__ == '__main__':
     # threaded=True: uzun süren Playwright istekleri diğer istekleri bloklamasın
     # host=127.0.0.1: debug modunda Werkzeug konsolu ağa açılmasın (uzaktan kod çalıştırma riski)
-    app.run(debug=True, host='127.0.0.1', port=5000, threaded=True)
+    if config.IS_FROZEN:
+        threading.Timer(1.2, lambda: webbrowser.open('http://127.0.0.1:5000')).start()
+        app.run(debug=False, host='127.0.0.1', port=5000, threaded=True)
+    else:
+        app.run(debug=True, host='127.0.0.1', port=5000, threaded=True)
