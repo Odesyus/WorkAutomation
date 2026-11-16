@@ -15,10 +15,13 @@ import time
 from datetime import datetime, timedelta
 import json
 import os
-import MernsDB
-import ICCID as ICCID_Func
-import CMPDB as OTP
-import config
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
+from core import MernsDB
+from core import ICCID as ICCID_Func
+from core import CMPDB as OTP
+from core import config
 
 DEFAULT_TIMEOUT = 150000  # 150 saniye (2.5 dk - yavaş Opera geçişleri için)
 
@@ -28,8 +31,7 @@ def main():
         Merns = MernsDB.get_Merns()
         iccid_list = []
         try:
-            root_dir = os.path.dirname(os.path.abspath(__file__))
-            cache_path = os.path.join(root_dir, "iccid_cache.json")
+            cache_path = os.path.join(config.DATA_DIR, "iccid_cache.json")
             if os.path.exists(cache_path):
                 with open(cache_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -75,7 +77,7 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
     POS_PRE = opts.get('pos_pre')
     if MSISDN == ICCID or not POS_PRE:
         try:
-            with open("iccid_cache.json", "r", encoding="utf-8") as f:
+            with open(os.path.join(config.DATA_DIR, "iccid_cache.json"), "r", encoding="utf-8") as f:
                 for item in json.load(f):
                     if str(item.get("iccid", "")).strip() == str(ICCID).strip():
                         if MSISDN == ICCID and item.get("msisdn"):

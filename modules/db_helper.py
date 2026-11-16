@@ -5,10 +5,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-import config
+from core import config
 
-# Oracle Instant Client (Thick mode) başlatma
-CLIENT_DIR = os.path.join(ROOT, "instantclient_19_25")
+# Oracle Instant Client (Thick mode) başlatma (drivers/ veya kök dizin)
+CLIENT_DIR = os.path.join(ROOT, "drivers", "instantclient_19_25")
+if not os.path.isdir(CLIENT_DIR):
+    CLIENT_DIR = os.path.join(ROOT, "instantclient_19_25")
 try:
     oracledb.init_oracle_client(lib_dir=CLIENT_DIR)
 except Exception:

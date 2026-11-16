@@ -9,9 +9,22 @@ Bireysel veriler 'local_config.json' ve 'users.json' içinde tutulur, Git'e akta
 import os
 import json
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-LOCAL_CONFIG_FILE = os.path.join(ROOT_DIR, "local_config.json")
-LOCAL_CONFIG_EXAMPLE = os.path.join(ROOT_DIR, "local_config.example.json")
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_DIR = os.path.join(ROOT_DIR, "config")
+DATA_DIR = os.path.join(ROOT_DIR, "data")
+os.makedirs(CONFIG_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
+
+LOCAL_CONFIG_FILE = os.path.join(CONFIG_DIR, "local_config.json")
+LOCAL_CONFIG_EXAMPLE = os.path.join(CONFIG_DIR, "local_config.example.json")
+
+# Eski kök dizin konumundan otomatik taşıma (geriye dönük uyumluluk)
+_LEGACY_LOCAL_CONFIG = os.path.join(ROOT_DIR, "local_config.json")
+if not os.path.exists(LOCAL_CONFIG_FILE) and os.path.exists(_LEGACY_LOCAL_CONFIG):
+    try:
+        os.replace(_LEGACY_LOCAL_CONFIG, LOCAL_CONFIG_FILE)
+    except Exception:
+        pass
 
 # =============================================================================
 # 1. ORTAK BİLGİLER (SHARED CONFIGURATION - TÜM KULLANICILAR İÇİN AYNI)

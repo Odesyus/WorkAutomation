@@ -43,7 +43,7 @@ goto :run_app
 call venv\Scripts\activate.bat
 
 :run_app
-if not exist "local_config.json" if exist "local_config.example.json" copy "local_config.example.json" "local_config.json" >nul
+if not exist "config\local_config.json" if exist "config\local_config.example.json" copy "config\local_config.example.json" "config\local_config.json" >nul
 
 echo.
 echo ===================================================

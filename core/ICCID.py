@@ -1,18 +1,29 @@
 import re
 import os
+import sys
 import json
 from playwright.sync_api import Playwright, sync_playwright, expect
 import time
-import config
 
-USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+from core import config
+
+USERS_FILE = os.path.join(config.CONFIG_DIR, "users.json")
+_LEGACY_USERS_FILE = os.path.join(ROOT_DIR, "users.json")
+if not os.path.exists(USERS_FILE) and os.path.exists(_LEGACY_USERS_FILE):
+    try:
+        os.replace(_LEGACY_USERS_FILE, USERS_FILE)
+    except Exception:
+        pass
 DEFAULT_TIMEOUT = 60000  # 60 saniye
 
 
 def load_users():
     """users.json dosyasından kullanıcı listesini yükler ve dict {id: {...}} döndürür."""
     if not os.path.exists(USERS_FILE):
-        example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.example.json")
+        example_file = os.path.join(config.CONFIG_DIR, "users.example.json")
         default_list = []
         if os.path.exists(example_file):
             try:

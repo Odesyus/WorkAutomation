@@ -13,11 +13,12 @@ import os
 
 # Proje kök dizinini path'e ekle
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT_DIR)
-import config
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+from core import config
 
 # ES için kalıcı tarayıcı profili (reCAPTCHA oturumunu korur)
-ES_PROFILE_DIR = os.path.join(ROOT_DIR, 'es_browser_profile')
+ES_PROFILE_DIR = os.path.join(config.DATA_DIR, 'es_browser_profile')
 
 # Görev takip sözlüğü
 tasks = {}

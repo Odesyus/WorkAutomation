@@ -8,7 +8,7 @@ import re
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 
-import config
+from core import config
 from modules import opera_module, iccid_module, mdm_es_module, db_helper, auth_module, update_module
 
 app = Flask(__name__)
@@ -61,7 +61,7 @@ def body():
 
 
 def _get_tp_users_view():
-    import ICCID as ICCID_Func
+    from core import ICCID as ICCID_Func
     cached_lines = iccid_module.load_cached_lines()
     users_view = []
     for uid, u in ICCID_Func.load_users().items():
@@ -374,7 +374,7 @@ def api_users_list():
 
 @app.route('/api/users', methods=['POST'])
 def api_users_add():
-    import ICCID as ICCID_Func
+    from core import ICCID as ICCID_Func
     d = body()
     domain_user = str(d.get('user', '')).strip()
     password = str(d.get('password', '')).strip()
@@ -405,7 +405,7 @@ def api_users_add():
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def api_users_delete(user_id):
-    import ICCID as ICCID_Func
+    from core import ICCID as ICCID_Func
     users_map = ICCID_Func.load_users()
     owner_name = users_map.get(int(user_id), {}).get('Name')
     deleted = ICCID_Func.delete_user(user_id)

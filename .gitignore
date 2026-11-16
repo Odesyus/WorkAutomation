@@ -7,8 +7,11 @@ modules/__pycache__/
 # Bireysel / Yerel Kullanıcı Yapılandırmaları (Ortak Olmayanlar)
 local_config.json
 users.json
+config/local_config.json
+config/users.json
 iccid_cache.json
 cleaning_queue.json
+data/
 
 # İndirilen ve Üretilen Loglar
 downloaded_logs/
@@ -35,6 +38,7 @@ ENV/
 .vscode/
 
 # Harici Sürücüler ve İkili Dosyalar (Kurulumla temin edilir)
+drivers/
 instantclient_19_25/
 instantclient*/
 *.dll

@@ -102,7 +102,7 @@ def _run_multi_activation(task_id, items, options=None):
         from playwright.sync_api import sync_playwright
         from modules import iccid_module
         import importlib
-        import Opera
+        from core import Opera
         importlib.reload(Opera)
 
         with sync_playwright() as playwright:
@@ -257,7 +257,7 @@ def _run_activation(task_id, tckn, dt, iccid, options=None):
             from playwright.sync_api import sync_playwright
             from modules import iccid_module
             import importlib
-            import Opera
+            from core import Opera
             importlib.reload(Opera)
 
             with sync_playwright() as playwright:

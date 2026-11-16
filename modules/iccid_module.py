@@ -15,13 +15,22 @@ from datetime import datetime, timedelta
 
 # Proje kök dizinini path'e ekle
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-import config
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+from core import config
 
 TIMEOUT = 60000
 MUSTERI_BILGISI_URL = f"{config.TESTPORTAL['url']}/Otomasyon/Ortak/MusteriBilgisi.aspx"
-CACHE_FILE = os.path.join(ROOT, "iccid_cache.json")
-CLEANING_QUEUE_FILE = os.path.join(ROOT, "cleaning_queue.json")
+DATA_DIR = config.DATA_DIR
+CACHE_FILE = os.path.join(DATA_DIR, "iccid_cache.json")
+CLEANING_QUEUE_FILE = os.path.join(DATA_DIR, "cleaning_queue.json")
+for _legacy_name, _new_path in [("iccid_cache.json", CACHE_FILE), ("cleaning_queue.json", CLEANING_QUEUE_FILE)]:
+    _legacy_path = os.path.join(ROOT, _legacy_name)
+    if not os.path.exists(_new_path) and os.path.exists(_legacy_path):
+        try:
+            os.replace(_legacy_path, _new_path)
+        except Exception:
+            pass
 _cache_lock = threading.Lock()
 _queue_lock = threading.Lock()
 _monitor_thread = None
@@ -187,7 +196,7 @@ def fetch_iccids(user_ids=None):
     """
     try:
         from playwright.sync_api import sync_playwright
-        import ICCID as ICCID_Func
+        from core import ICCID as ICCID_Func
 
         fetched_data = []
         fetched_owners = set()
@@ -569,7 +578,7 @@ def clean_iccids(msisdn_list):
 
     try:
         from playwright.sync_api import sync_playwright, expect
-        import ICCID as ICCID_Func
+        from core import ICCID as ICCID_Func
 
         cached_lines = load_cached_lines()
         msisdn_to_owner = {

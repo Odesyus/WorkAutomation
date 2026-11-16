@@ -11,9 +11,14 @@ Gereksinim:
 """
 
 import os
+import sys
 from datetime import datetime
 import paramiko
-import config
+
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
+from core import config
 
 
 class SSHLogCollector:
