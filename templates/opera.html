@@ -44,24 +44,41 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="iccid"><i class="fas fa-sim-card"></i> ICCID</label>
-                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                        <select id="pospre-filter-select" onchange="filterIccidSelect(this.value)" style="width: auto; min-width: 175px; font-weight: 600;">
-                            <option value="all">Pos / Pre (Tümü)</option>
-                            <option value="Pos" selected>Faturalı (Pos)</option>
-                            <option value="Pre">Faturasız (Pre)</option>
-                        </select>
-                        <span style="font-size: 0.85rem; color: var(--text-muted); align-self: center;">
-                            Seçilen ödeme tipine uygun temiz ICCID'ler listelenir
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+                        <label for="iccid" style="margin-bottom: 0;"><i class="fas fa-sim-card"></i> ICCID</label>
+                        <span id="single-iccid-count" style="font-size: 0.78rem; padding: 2px 9px; border-radius: 999px; background: rgba(99, 102, 241, 0.14); color: var(--primary); font-weight: 600;">
+                            {{ (test_lines or [])|length }} uygun hat
                         </span>
                     </div>
-                    <div class="input-with-select">
-                        <input type="text" id="iccid" name="iccid" placeholder="ICCID numarası" required>
-                        <select id="iccid-select" onchange="selectICCID(this.value)" title="Temiz ICCID'ler">
+
+                    <div class="pref-chip-group" id="pospre-chip-group" style="margin-bottom: 10px;">
+                        <button type="button" class="pref-chip" data-pospre="all" onclick="filterIccidSelect('all')" style="cursor: pointer; color: inherit;">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Tümü</span>
+                        </button>
+                        <button type="button" class="pref-chip active" data-pospre="Pos" onclick="filterIccidSelect('Pos')" style="cursor: pointer; color: inherit;">
+                            <i class="fas fa-file-invoice"></i>
+                            <span>Faturalı (Pos)</span>
+                        </button>
+                        <button type="button" class="pref-chip" data-pospre="Pre" onclick="filterIccidSelect('Pre')" style="cursor: pointer; color: inherit;">
+                            <i class="fas fa-wallet"></i>
+                            <span>Faturasız (Pre)</span>
+                        </button>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div style="position: relative;">
+                            <input type="text" id="iccid" name="iccid" placeholder="ICCID numarası girin veya aşağıdan seçin" required oninput="updateSingleIccidMeta()" style="padding-right: 34px; font-family: var(--font-mono, monospace);">
+                            <button type="button" id="btn-clear-iccid" onclick="clearSingleIccid()" title="Temizle" style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px 6px; font-size: 0.9rem;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        <select id="iccid-select" onchange="selectICCID(this.value)" title="Temiz ICCID'ler" style="width: 100%;">
                             <option value="">Listeden temiz ICCID seçiniz ({{ (test_lines or [])|length }} adet)...</option>
                             {% if test_lines %}
                                 {% for line in test_lines %}
-                                <option value="{{ line.iccid }}" data-pospre="{{ line.pos_pre or '-' }}" data-msisdn="{{ line.msisdn }}">
+                                <option value="{{ line.iccid }}" data-pospre="{{ line.pos_pre or '-' }}" data-msisdn="{{ line.msisdn }}" data-owner="{{ line.owner or '' }}">
                                     [{{ line.owner }}] {{ line.msisdn }} — {{ line.iccid }} ({{ line.pos_pre or '-' }})
                                 </option>
                                 {% endfor %}
@@ -71,6 +88,8 @@
                                 {% endfor %}
                             {% endif %}
                         </select>
+
+                        <div id="single-iccid-meta" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; border-radius: 6px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); font-size: 0.8rem; color: var(--text-muted);"></div>
                     </div>
                 </div>
 
@@ -361,6 +380,58 @@
 
     function selectICCID(value) {
         if (value) document.getElementById('iccid').value = value;
+        updateSingleIccidMeta();
+    }
+
+    function clearSingleIccid() {
+        const input = document.getElementById('iccid');
+        const sel = document.getElementById('iccid-select');
+        if (input) input.value = '';
+        if (sel) sel.value = '';
+        updateSingleIccidMeta();
+    }
+
+    function updateSingleIccidMeta() {
+        const input = document.getElementById('iccid');
+        const clearBtn = document.getElementById('btn-clear-iccid');
+        const metaBox = document.getElementById('single-iccid-meta');
+        const val = (input?.value || '').trim();
+
+        if (clearBtn) clearBtn.style.display = val ? 'inline-flex' : 'none';
+        if (!metaBox) return;
+
+        const match = allIccidOptions.find(i => i.value === val) || rawCleanLines.find(l => l.iccid === val);
+        if (!val || !match) {
+            metaBox.style.display = 'none';
+            metaBox.innerHTML = '';
+            return;
+        }
+        const msisdn = match.msisdn || '-';
+        const pospre = match.pospre || match.pos_pre || '-';
+        const owner = match.owner || '';
+        const isPos = String(pospre).toLowerCase() === 'pos';
+        const badgeStyle = isPos
+            ? 'background: rgba(59, 130, 246, 0.16); color: #3b82f6;'
+            : 'background: rgba(16, 185, 129, 0.16); color: #10b981;';
+        metaBox.innerHTML = `
+            <i class="fas fa-check-circle" style="color: #10b981;"></i>
+            <strong style="color: var(--text); font-family: var(--font-mono, monospace);">${escapeHtml(msisdn)}</strong>
+            <span style="padding: 1px 7px; border-radius: 4px; font-weight: 600; ${badgeStyle}">${escapeHtml(pospre)}</span>
+            ${owner ? `<span>· ${escapeHtml(owner)}</span>` : ''}
+        `;
+        metaBox.style.display = 'flex';
+    }
+
+    function usePoolLineInSingle(iccidVal) {
+        const line = rawCleanLines.find(l => l.iccid === iccidVal);
+        const pospre = line?.pos_pre || 'all';
+        filterIccidSelect(pospre === 'Pos' || pospre === 'Pre' ? pospre : 'all');
+        const input = document.getElementById('iccid');
+        const sel = document.getElementById('iccid-select');
+        if (input) input.value = iccidVal;
+        if (sel) sel.value = iccidVal;
+        updateSingleIccidMeta();
+        showToast(`${line?.msisdn || iccidVal} tekli aktivasyon formuna aktarıldı.`, 'info');
     }
 
     let allIccidOptions = [];
@@ -369,20 +440,21 @@
         if (!sel) return;
         allIccidOptions = Array.from(sel.querySelectorAll('option[value]:not([value=""])')).map(opt => ({
             value: opt.value,
-            text: opt.textContent,
+            text: opt.textContent.trim(),
             pospre: opt.getAttribute('data-pospre') || '-',
-            msisdn: opt.getAttribute('data-msisdn') || ''
+            msisdn: opt.getAttribute('data-msisdn') || '',
+            owner: opt.getAttribute('data-owner') || ''
         }));
-        const savedPosPre = localStorage.getItem('opera_pospre_filter') || 'all';
-        const filterSel = document.getElementById('pospre-filter-select');
-        if (filterSel) {
-            filterSel.value = savedPosPre;
-            filterIccidSelect(savedPosPre);
-        }
+        const savedPosPre = localStorage.getItem('opera_pospre_filter') || 'Pos';
+        filterIccidSelect(savedPosPre);
+        updateSingleIccidMeta();
     }
 
     function filterIccidSelect(pospre) {
         localStorage.setItem('opera_pospre_filter', pospre);
+        document.querySelectorAll('#pospre-chip-group .pref-chip').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-pospre') === pospre);
+        });
         const sel = document.getElementById('iccid-select');
         if (!sel) return;
         const currentVal = document.getElementById('iccid').value.trim();
@@ -403,6 +475,8 @@
         });
 
         defaultOpt.textContent = `Listeden ${placeholderText} seçiniz (${filtered.length} adet)...`;
+        const countBadge = document.getElementById('single-iccid-count');
+        if (countBadge) countBadge.textContent = `${filtered.length} uygun hat`;
 
         filtered.forEach(item => {
             const opt = document.createElement('option');
@@ -410,6 +484,7 @@
             opt.textContent = item.text;
             opt.setAttribute('data-pospre', item.pospre);
             opt.setAttribute('data-msisdn', item.msisdn);
+            opt.setAttribute('data-owner', item.owner);
             sel.appendChild(opt);
         });
 
@@ -417,6 +492,7 @@
         if (currentVal && !filtered.some(i => i.value === currentVal)) {
             document.getElementById('iccid').value = '';
         }
+        updateSingleIccidMeta();
     }
 
     function getFilteredPoolLines() {
@@ -478,6 +554,9 @@
                             ${escapeHtml(line.iccid)}
                         </div>
                     </div>
+                    <button type="button" onclick="event.stopPropagation(); usePoolLineInSingle('${escapeHtml(line.iccid)}')" title="Tekli aktivasyon formuna aktar" style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.25); color: var(--primary); border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 11px; flex-shrink: 0;">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
                 </div>
             `;
         });
