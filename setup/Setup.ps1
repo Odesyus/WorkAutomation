@@ -187,24 +187,30 @@ $scriptBlock = {
         $env:Path = "$extra;$userPath;$machinePath"
     }
 
+    function Test-PythonValid([string]$exePath) {
+        if (-not $exePath -or -not (Test-Path $exePath)) { return $false }
+        $ver = & $exePath --version 2>&1
+        if ($LASTEXITCODE -ne 0 -or "$ver" -notmatch "Python 3") { return $false }
+        & $exePath -c "import venv, ensurepip" 2>$null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        return $true
+    }
+
     function Find-Python {
         Refresh-EnvPath
         $cmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($cmd) {
-            $ver = & $cmd.Source --version 2>&1
-            if ($LASTEXITCODE -eq 0 -and "$ver" -match "Python 3") { return $cmd.Source }
-        }
+        if ($cmd -and (Test-PythonValid $cmd.Source)) { return $cmd.Source }
         $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
         if ($pyLauncher) {
             $pyPath = & $pyLauncher.Source -3 -c "import sys; print(sys.executable)" 2>$null
-            if ($LASTEXITCODE -eq 0 -and $pyPath -and (Test-Path $pyPath.Trim())) { return $pyPath.Trim() }
+            if ($LASTEXITCODE -eq 0 -and $pyPath -and (Test-PythonValid $pyPath.Trim())) { return $pyPath.Trim() }
         }
         $candidates = @(
             Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
             Get-ChildItem -Path "$env:ProgramFiles\Python3*\python.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
         ) | Sort-Object -Descending
         foreach ($c in $candidates) {
-            if ($c -and (Test-Path $c)) { return $c }
+            if (Test-PythonValid $c) { return $c }
         }
         return $null
     }
@@ -241,7 +247,7 @@ $scriptBlock = {
             $wc.DownloadFile($PythonUrl, $pySetup)
             Add-Log "[*] Python sessiz modda kuruluyor (PATH otomatik eklenecek)..."
             Set-Step 22 "[1/6] Python kuruluyor..."
-            $proc = Start-Process -FilePath $pySetup -ArgumentList "/quiet InstallAllUsers=0 PrependPath=1 Include_test=0 SimpleInstall=1" -Wait -PassThru
+            $proc = Start-Process -FilePath $pySetup -ArgumentList "/quiet InstallAllUsers=0 PrependPath=1 Include_pip=1 Include_test=0" -Wait -PassThru
             Remove-Item $pySetup -Force -ErrorAction SilentlyContinue
             if ($proc.ExitCode -ne 0) {
                 throw "Python kurulumu basarisiz oldu (ExitCode: $($proc.ExitCode))."
@@ -337,6 +343,7 @@ $scriptBlock = {
         Set-Step 65 "[4/6] Sanal ortam ve requirements.txt kutuphaneleri kuruluyor..."
         $venvDir = Join-Path $TargetDir "venv"
         $venvPython = Join-Path $venvDir "Scripts\python.exe"
+        $venvPip = Join-Path $venvDir "Scripts\pip.exe"
         if (-not (Test-Path $venvPython)) {
             Add-Log "[*] Izole Python sanal ortami (venv) olusturuluyor..."
             & $pythonExe -m venv $venvDir 2>&1 | ForEach-Object { Add-Log "    $_" }
@@ -345,8 +352,13 @@ $scriptBlock = {
             }
         }
 
+        if (-not (Test-Path $venvPip)) {
+            Add-Log "[*] Sanal ortamda pip eksik, ensurepip ile kuruluyor..."
+            & $venvPython -m ensurepip --upgrade 2>&1 | ForEach-Object { Add-Log "    $_" }
+        }
+
         Add-Log "[*] pip guncelleniyor..."
-        & $venvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
+        & $venvPython -m pip install --upgrade pip --disable-pip-version-check 2>&1 | ForEach-Object { Add-Log "    $_" }
 
         $reqFile = Join-Path $TargetDir "requirements.txt"
         if (Test-Path $reqFile) {
