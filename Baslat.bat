@@ -7,6 +7,7 @@ echo       TELEKOM OTOMASYON PLATFORMU BASLATICI
 echo ===================================================
 echo.
 
+if exist "runtime\python.exe" goto :runtime_ok
 if exist "venv\Scripts\activate.bat" goto :venv_ok
 
 python --version >nul 2>&1
@@ -17,6 +18,10 @@ echo Lutfen once Setup.bat dosyasini calistirin.
 echo.
 pause
 exit /b 1
+
+:runtime_ok
+set "PYTHON_CMD=runtime\python.exe"
+goto :run_app
 
 :python_ok
 
@@ -42,8 +47,10 @@ goto :run_app
 
 :venv_ok
 call venv\Scripts\activate.bat
+set "PYTHON_CMD=python"
 
 :run_app
+if not defined PYTHON_CMD set "PYTHON_CMD=python"
 if not exist "config\local_config.json" if exist "config\local_config.example.json" copy "config\local_config.example.json" "config\local_config.json" >nul
 
 echo.
@@ -54,5 +61,5 @@ echo ===================================================
 echo.
 
 start http://127.0.0.1:5000
-python app.py
+"%PYTHON_CMD%" app.py
 pause
