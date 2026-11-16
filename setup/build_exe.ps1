@@ -10,10 +10,12 @@ if (-not (Test-Path $VenvPython)) {
 }
 
 Write-Host "[1/5] PyInstaller kontrol ediliyor..."
-& $VenvPython -m pip show pyinstaller >$null 2>&1
-if ($LASTEXITCODE -ne 0) {
+$pyInstallerExe = Join-Path $RootDir "venv\Scripts\pyinstaller.exe"
+if (-not (Test-Path $pyInstallerExe)) {
     Write-Host "[*] PyInstaller kuruluyor..."
+    $ErrorActionPreference = "Continue"
     & $VenvPython -m pip install pyinstaller
+    $ErrorActionPreference = "Stop"
 }
 
 Write-Host "[2/5] Eski build/dist temizleniyor..."
@@ -21,6 +23,7 @@ Remove-Item (Join-Path $RootDir "build") -Recurse -Force -ErrorAction SilentlyCo
 Remove-Item (Join-Path $RootDir "dist") -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "[3/5] TelekomOtomasyon.exe derleniyor..."
+$ErrorActionPreference = "Continue"
 & $VenvPython -m PyInstaller `
     --noconfirm `
     --clean `
@@ -53,6 +56,7 @@ Write-Host "[3/5] TelekomOtomasyon.exe derleniyor..."
 if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller derlemesi basarisiz oldu!"
 }
+$ErrorActionPreference = "Stop"
 
 $OutDir = Join-Path $RootDir "dist\TelekomOtomasyon"
 
