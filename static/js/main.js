@@ -191,7 +191,33 @@ async function applySystemUpdate() {
     }
 
     try {
-        const res = await apiCall('/api/system/apply-update', 'POST');
+        let res = await apiCall('/api/system/apply-update', 'POST');
+
+        // Flask/Werkzeug git pull sonrası sunucuyu istek bitmeden yeniden başlattıysa bağlantının geri gelmesini bekle
+        if (!res.success && res.error && res.error.includes('Sunucuya ulaşılamadı')) {
+            if (body) {
+                body.innerHTML = `
+                    <div style="text-align: center; padding: 24px 10px;">
+                        <i class="fas fa-sync fa-spin" style="font-size: 2.4rem; color: var(--primary); margin-bottom: 16px;"></i>
+                        <h4 style="margin: 0 0 8px 0;">Sunucu Yeniden Başlatılıyor</h4>
+                        <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">
+                            Güncelleme uygulandı, sunucunun tekrar açılması bekleniyor...
+                        </p>
+                    </div>
+                `;
+            }
+            for (let i = 0; i < 12; i++) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const ping = await fetch('/api/system/version');
+                    if (ping.ok) {
+                        res = { success: true };
+                        break;
+                    }
+                } catch (_) {}
+            }
+        }
+
         if (res.success) {
             if (body) {
                 body.innerHTML = `

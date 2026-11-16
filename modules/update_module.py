@@ -322,13 +322,15 @@ del "%~f0"
     except Exception as pwe:
         logs.append(f"Playwright uyarısı: {str(pwe)}")
 
-    # 4. Flask Werkzeug yeniden yükleyicisini tetikle (app.py dosyasının mtime'ını güncelle)
+    # 4. Flask Werkzeug yeniden yükleyicisini HTTP yanıtı döndükten sonra tetikle
     app_path = os.path.join(ROOT_DIR, "app.py")
-    try:
-        os.utime(app_path, None)
-        logs.append("Sunucu yeniden başlatılıyor.")
-    except Exception:
-        pass
+    def _touch_app():
+        try:
+            os.utime(app_path, None)
+        except Exception:
+            pass
+    threading.Timer(1.0, _touch_app).start()
+    logs.append("Sunucu yeniden başlatılıyor.")
 
     return {
         'success': True,
