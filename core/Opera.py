@@ -121,8 +121,7 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
             if callable(opts.get("is_stopped")) and opts["is_stopped"]():
                 return None
             try:
-                root_dir = os.path.dirname(os.path.abspath(__file__))
-                shots_dir = os.path.join(root_dir, "static", "screenshots")
+                shots_dir = os.path.join(config.BUNDLE_DIR, "static", "screenshots")
                 os.makedirs(shots_dir, exist_ok=True)
                 fname = f"opera_error_{int(time.time() * 1000)}.png"
                 fpath = os.path.join(shots_dir, fname)
