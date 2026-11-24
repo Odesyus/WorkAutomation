@@ -175,9 +175,19 @@ def run(playwright: Playwright, TCKN, DT, ICCID, progress=None, options=None):
 def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WCDMA, LTE, NR, VoLTE, VoWifi, report, capture_error_screenshot, HAT_TIPI="Faturalı Hat", options=None):
     def wait_glasspane(timeout=120000):
         try:
-            glass = page.locator(".AFBlockingGlassPane, .AFModalGlassPane")
-            if glass.count() > 0 and glass.first.is_visible():
-                glass.first.wait_for(state="hidden", timeout=timeout)
+            page.wait_for_function(
+                """() => {
+                    const glass = document.querySelector('.AFBlockingGlassPane, .AFModalGlassPane');
+                    if (glass && glass.offsetParent !== null && glass.style.display !== 'none' && glass.style.visibility !== 'hidden') {
+                        return false;
+                    }
+                    if (window.AdfPage && window.AdfPage.PAGE && typeof window.AdfPage.PAGE.isSynchronizedWithServer === 'function') {
+                        return window.AdfPage.PAGE.isSynchronizedWithServer();
+                    }
+                    return true;
+                }""",
+                timeout=timeout
+            )
         except Exception:
             pass
 
@@ -305,99 +315,72 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     else:
         page.locator("input[name=\"pt1:r1:1:r1:2:it20\"]").fill("ada")
 
-    # Kimlik Türü seçimi (soc7): Kesinlikle TC ÇİPLİ KİMLİK KARTI (value='0')
+    # Kimlik Türü seçimi (soc7): Kesinlikle TC ÇİPLİ KİMLİK KARTI (value='2')
     wait_glasspane()
     def _get_soc7():
         loc = page.locator("select[name*='soc7']")
         return loc.first if loc.count() > 0 else page.locator("select[name=\"pt1:r1:1:r1:2:soc7\"]")
 
-    try:
-        id2_loc = page.locator("input[id*='id2::content']").first
-        if not (id2_loc.count() > 0 and id2_loc.is_visible()):
+    gec_tarih_loc = page.get_by_role("textbox", name=re.compile(r"Geçerlilik Tarihi", re.I)).first
+    seri_no_loc = page.get_by_role("textbox", name=re.compile(r"Seri Numarası", re.I)).first
+    for _soc_attempt in range(3):
+        try:
+            if gec_tarih_loc.count() > 0 and gec_tarih_loc.is_visible() and _get_soc7().input_value() == "2":
+                break
+
+            if _soc_attempt > 0 or _get_soc7().input_value() == "2":
+                ks = _get_soc7()
+                ks.focus()
+                ks.select_option(value="1")
+                ks.dispatch_event("change")
+                ks.press("Tab")
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                except Exception:
+                    pass
+                wait_glasspane()
+
             ks = _get_soc7()
             ks.focus()
-            ks.click()
-            # Boş değerden doğrudan 0'a geçiş ADF PPR tetiklemezse önce value='1' üzerinden PPR tetikle
-            ks.select_option(value="1")
+            try:
+                ks.select_option(label="TC ÇİPLİ KİMLİK KARTI")
+            except Exception:
+                ks.select_option(value="2")
             ks.dispatch_event("change")
             ks.press("Tab")
-            wait_glasspane()
             try:
-                expect(id2_loc).to_be_visible(timeout=5000)
+                page.wait_for_load_state("networkidle", timeout=5000)
             except Exception:
                 pass
+            wait_glasspane()
+            expect(gec_tarih_loc).to_be_visible(timeout=8000)
+            expect(_get_soc7()).to_have_value("2", timeout=5000)
+            break
+        except Exception as e:
+            print(f"[KİMLİK TÜRÜ SEÇİM DENEME {_soc_attempt + 1}] {e}", flush=True)
 
-        ks = _get_soc7()
-        ks.focus()
-        ks.click()
-        try:
-            ks.select_option(label="TC ÇİPLİ KİMLİK KARTI")
-        except Exception:
-            ks.select_option(value="0")
-        ks.dispatch_event("change")
-        ks.press("Tab")
-        wait_glasspane()
-        if id2_loc.count() > 0:
-            expect(id2_loc).to_be_visible(timeout=5000)
-    except Exception as e:
-        print(f"[KİMLİK TÜRÜ SEÇİM UYARI] {e}", flush=True)
-
-# Seri numarası, Geçerlilik Tarihi ve Kimlik Kayıt No girişi (Opera yeni güncellemesinde zorunlu alanlar)
+    # Seri numarası ve Geçerlilik Tarihi girişi (Kesinlikle TC ÇİPLİ KİMLİK KARTI: K35B28574 + 1 yıl sonrası)
     STATIK_SERI_NO = "K35B28574"
     gecerlilik_tarihi_str = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
     try:
-        page.evaluate("""(data) => {
-            document.querySelectorAll("input:not([disabled])").forEach(inp => {
-                if (inp.offsetParent === null) return;
-                const row = inp.closest('tr');
-                const txt = row ? row.innerText.toLowerCase() : '';
-                // Seri Numarası: Sabit K35B28574
-                if (txt.includes('seri numarası') || inp.id.includes('it3') || inp.id.includes('it22') || inp.id.includes('it6')) {
-                    inp.value = data.seriNo;
-                    inp.dispatchEvent(new Event('input', { bubbles: true }));
-                    inp.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                // Geçerlilik Tarihi: Bugünden 1 sene sonrası
-                if (txt.includes('geçerlilik tarihi') || (inp.placeholder === 'dd.mm.yyyy' && !txt.includes('doğum') && !txt.includes('vekalet'))) {
-                    inp.value = data.gecerlilik;
-                    inp.dispatchEvent(new Event('input', { bubbles: true }));
-                    inp.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                // Kimlik Kayıt Numarası (sadece görünürse)
-                if (txt.includes('kimlik kayıt') || inp.id.includes('it7')) {
-                    inp.value = '123456';
-                    inp.dispatchEvent(new Event('input', { bubbles: true }));
-                    inp.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            });
-        }""", {'seriNo': STATIK_SERI_NO, 'gecerlilik': gecerlilik_tarihi_str})
-    except Exception:
-        pass
+        expect(seri_no_loc).to_be_visible(timeout=5000)
+        seri_no_loc.click()
+        seri_no_loc.fill(STATIK_SERI_NO)
+    except Exception as e:
+        print(f"[SERİ NO UYARI] {e}", flush=True)
 
     try:
-        seri_no = page.get_by_role("textbox", name=re.compile(r"Seri Numarası", re.I))
-        if seri_no.count() > 0 and seri_no.first.is_visible():
-            seri_no.first.click()
-            seri_no.first.fill(STATIK_SERI_NO)
-    except Exception:
-        pass
-
-    try:
-        gec_tarih = page.get_by_role("textbox", name=re.compile(r"Geçerlilik Tarihi", re.I))
-        if gec_tarih.count() > 0 and gec_tarih.first.is_visible():
-            gec_tarih.first.click()
-            gec_tarih.first.fill(gecerlilik_tarihi_str)
-            gec_tarih.first.press("Tab")
-    except Exception:
-        pass
-
-    try:
-        kayit_no = page.get_by_role("textbox", name=re.compile(r"Kimlik Kayıt", re.I))
-        if kayit_no.count() > 0 and kayit_no.first.is_visible():
-            kayit_no.first.click()
-            kayit_no.first.fill("123456")
-    except Exception:
-        pass
+        expect(gec_tarih_loc).to_be_visible(timeout=5000)
+        gec_tarih_loc.click()
+        gec_tarih_loc.fill(gecerlilik_tarihi_str)
+        gec_tarih_loc.press("Tab")
+        try:
+            page.wait_for_load_state("networkidle", timeout=4000)
+        except Exception:
+            pass
+        wait_glasspane()
+    except Exception as e:
+        print(f"[GEÇERLİLİK TARİHİ UYARI] {e}", flush=True)
 
     # İl, İlçe, Semt seçimi (ADANA -> ALADAĞ(KARSANTI) -> AKÖREN)
     try:
@@ -410,15 +393,15 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             il_inp.click()
             il_inp.fill("ADANA")
             il_inp.press("Tab")
-            expect(il_inp).to_have_value("ADANA", timeout=DEFAULT_TIMEOUT)
+            expect(il_inp).to_have_value("ADANA", timeout=10000)
             try:
                 page.wait_for_load_state("networkidle", timeout=5000)
             except Exception:
                 pass
             wait_glasspane()
 
-        expect(ilce_inp).to_be_enabled(timeout=DEFAULT_TIMEOUT)
-        for _ilce_try in range(2):
+        expect(ilce_inp).to_be_enabled(timeout=10000)
+        for _ilce_try in range(3):
             ilce_inp.click()
             ilce_inp.fill("ALADAĞ(KARSANTI)")
             ilce_inp.press("Tab")
@@ -428,13 +411,13 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                 pass
             wait_glasspane()
             try:
-                expect(semt_inp).to_be_enabled(timeout=5000)
+                expect(semt_inp).to_be_enabled(timeout=6000)
                 expect(ilce_inp).to_have_value("ALADAĞ(KARSANTI)", timeout=3000)
                 break
             except Exception:
                 pass
 
-        expect(semt_inp).to_be_enabled(timeout=DEFAULT_TIMEOUT)
+        expect(semt_inp).to_be_enabled(timeout=10000)
         semt_inp.click()
         semt_inp.fill("AKÖREN")
         semt_inp.press("Tab")
@@ -442,7 +425,7 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
             page.wait_for_load_state("networkidle", timeout=5000)
         except Exception:
             pass
-        expect(semt_inp).to_have_value("AKÖREN", timeout=DEFAULT_TIMEOUT)
+        expect(semt_inp).to_have_value("AKÖREN", timeout=10000)
         wait_glasspane()
         print("[ADRES] İl/İlçe/Semt seçimi tamamlandı.", flush=True)
     except Exception as e:
@@ -800,19 +783,17 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     ileri_btn = page.get_by_role("button", name="İleri")
     expect(ileri_btn).to_be_visible(timeout=DEFAULT_TIMEOUT)
 
+    musteri_tercih_target = page.get_by_role("checkbox", name=re.compile(r"Volte|Wifi Arama", re.I)).first
+
     def _is_musteri_tercihleri_reached():
         try:
-            if page.get_by_role("heading", name="Müşteri Tercihleri").is_visible():
+            if musteri_tercih_target.count() > 0 and musteri_tercih_target.is_visible():
                 return True
-            if page.locator("select:has(option:has-text('İzin Verilsin')), select:has(option:has-text('İzin Verilmesin'))").count() > 0:
-                return True
-            if page.locator("text='Paylaşım ve Bilgilendirme İzinleri'").is_visible():
+            if page.get_by_text("Paylaşım ve Bilgilendirme İzinleri").count() > 0 and page.get_by_text("Paylaşım ve Bilgilendirme İzinleri").first.is_visible():
                 return True
         except Exception:
             pass
         return False
-
-    musteri_tercih_target = page.locator("select:has(option:has-text('İzin Verilsin')), select:has(option:has-text('İzin Verilmesin'))").first.or_(page.get_by_role("heading", name="Müşteri Tercihleri"))
 
     # İleri butonuna basarak "Müşteri Tercihleri" sayfasına geçişi akıllı expect ile garantiye al
     for _ in range(15):
@@ -856,111 +837,80 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
 
     # Müşteri Tercihleri ekranındaki tüm izin dropdown'larını (Paylaşım ve Bilgilendirme İzinleri) "İzin Verilsin" olarak doldur
     def _fill_all_permissions_allowed():
-        try:
-            izin_selects = page.locator("select:has(option:has-text('İzin Verilsin'))")
-            for iz_idx in range(izin_selects.count()):
-                try:
-                    iz_sel = izin_selects.nth(iz_idx)
-                    if not iz_sel.is_visible():
-                        continue
-                    cur_val = iz_sel.evaluate("el => el.options[el.selectedIndex] ? el.options[el.selectedIndex].text.trim() : ''")
-                    if cur_val != "İzin Verilsin":
-                        iz_sel.scroll_into_view_if_needed(timeout=2000)
-                        try:
-                            iz_sel.select_option(label="İzin Verilsin", timeout=1500)
-                        except Exception:
-                            iz_sel.evaluate("""el => {
-                                for (let idx = 0; idx < el.options.length; idx++) {
-                                    if (el.options[idx].text.includes('İzin Verilsin')) {
-                                        el.selectedIndex = idx;
-                                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                                        break;
+        for _pass in range(2):
+            try:
+                wait_glasspane()
+                all_selects = page.locator("select")
+                for iz_idx in range(all_selects.count()):
+                    try:
+                        iz_sel = all_selects.nth(iz_idx)
+                        if not iz_sel.is_visible():
+                            continue
+                        info = iz_sel.evaluate("""el => {
+                            const hasIzin = Array.from(el.options).some(o => o.text.includes('İzin Verilsin'));
+                            const cur = el.options[el.selectedIndex] ? el.options[el.selectedIndex].text.trim() : '';
+                            return { hasIzin, cur };
+                        }""")
+                        if info.get("hasIzin") and info.get("cur") != "İzin Verilsin":
+                            iz_sel.scroll_into_view_if_needed(timeout=2000)
+                            try:
+                                iz_sel.select_option(label="İzin Verilsin", timeout=2000)
+                            except Exception:
+                                iz_sel.evaluate("""el => {
+                                    for (let idx = 0; idx < el.options.length; idx++) {
+                                        if (el.options[idx].text.includes('İzin Verilsin')) {
+                                            el.selectedIndex = idx;
+                                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                                            break;
+                                        }
                                     }
-                                }
-                            }""")
-                        iz_sel.dispatch_event("change")
-                        page.wait_for_timeout(100)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        try:
-            page.evaluate("""() => {
-                document.querySelectorAll("select").forEach(sel => {
-                    for (let idx = 0; idx < sel.options.length; idx++) {
-                        if (sel.options[idx].text.trim().includes('İzin Verilsin')) {
-                            if (sel.selectedIndex !== idx) {
-                                sel.selectedIndex = idx;
-                                sel.dispatchEvent(new Event('change', { bubbles: true }));
-                                sel.dispatchEvent(new Event('input', { bubbles: true }));
-                            }
-                            break;
-                        }
-                    }
-                });
-            }""")
-        except Exception:
-            pass
+                                }""")
+                            iz_sel.dispatch_event("change")
+                            wait_glasspane()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
     _fill_all_permissions_allowed()
     print("[Müşteri Tercihleri] İzinler ayarlandı", flush=True)
 
     # Müşteri Grubu kesinlikle "Normal" olmalıdır (kullanıcının VIP yetkisi yoktur)
     try:
-        musteri_grubu = page.locator("select:has(option:has-text('Normal'))")
-        if musteri_grubu.count() > 0:
-            for mg_idx in range(musteri_grubu.count()):
-                try:
-                    mg = musteri_grubu.nth(mg_idx)
-                    if mg.is_visible():
-                        mg.select_option(label="Normal", timeout=2000)
-                        mg.dispatch_event("change")
-                except Exception:
-                    pass
+        all_selects_mg = page.locator("select")
+        for mg_idx in range(all_selects_mg.count()):
+            try:
+                mg = all_selects_mg.nth(mg_idx)
+                if not mg.is_visible():
+                    continue
+                info_mg = mg.evaluate("""el => {
+                    const hasNormal = Array.from(el.options).some(o => o.text.trim() === 'Normal');
+                    const cur = el.options[el.selectedIndex] ? el.options[el.selectedIndex].text.trim() : '';
+                    return { hasNormal, cur };
+                }""")
+                if info_mg.get("hasNormal") and info_mg.get("cur") != "Normal":
+                    mg.select_option(label="Normal", timeout=2000)
+                    mg.dispatch_event("change")
+                    wait_glasspane()
+            except Exception:
+                pass
     except Exception:
         pass
     print("[Müşteri Tercihleri] Müşteri grubu ayarlandı", flush=True)
 
-    expect(page.get_by_role("checkbox", name="5N hizmetlerinden yararlanmak istiyorum")).to_be_enabled(timeout=DEFAULT_TIMEOUT)
-    page.wait_for_timeout(1000)
-    if not NR:
-        page.get_by_role("checkbox", name="5N hizmetlerinden yararlanmak").click()
-        expect(page.get_by_role("checkbox", name="4.5N hizmetlerinden")).to_be_checked(checked=False)
-        checkbox_45n = page.get_by_role("checkbox", name="4.5N hizmetlerinden")
-        if checkbox_45n.is_checked():
-            checkbox_45n.uncheck()
+    cb_5n_check = page.get_by_role("checkbox", name=re.compile(r"5N hizmetlerinden yararlanmak", re.I))
+    if cb_5n_check.count() > 0 and cb_5n_check.first.is_visible():
+        expect(cb_5n_check.first).to_be_enabled(timeout=DEFAULT_TIMEOUT)
+        page.wait_for_timeout(1000)
+        if not NR:
+            cb_5n_check.first.click()
+            expect(page.get_by_role("checkbox", name="4.5N hizmetlerinden")).to_be_checked(checked=False)
+            checkbox_45n = page.get_by_role("checkbox", name="4.5N hizmetlerinden")
+            if checkbox_45n.is_checked():
+                checkbox_45n.uncheck()
 
-        # Faturasız hatlarda (Pre SIM'ler 3G uyumlu olduğundan) doğrudan 3N seçilir
-        if is_faturasiz or (WCDMA and not LTE):
-            cb_3n = page.get_by_role("checkbox", name=re.compile(r"3N hizmetlerinden", re.IGNORECASE))
-            if cb_3n.count() > 0:
-                cb_3n.first.scroll_into_view_if_needed()
-                cb_3n.first.check()
-            else:
-                lbl = page.locator("text=3N hizmetlerinden").first
-                lbl.scroll_into_view_if_needed()
-                lbl.click()
-            page.wait_for_timeout(1000)
-            if page.get_by_role("button", name="Tamam").is_visible():
-                page.get_by_role("button", name="Tamam").click()
-        elif (LTE):
-            cb_45n = page.get_by_role("checkbox", name=re.compile(r"4\.5N hizmetlerinden", re.IGNORECASE))
-            if cb_45n.count() > 0:
-                cb_45n.first.scroll_into_view_if_needed()
-                cb_45n.first.check()
-            else:
-                lbl = page.locator("text=4.5N hizmetlerinden").first
-                lbl.scroll_into_view_if_needed()
-                lbl.click()
-            page.wait_for_timeout(1000)
-            if page.get_by_role("button", name="Tamam").is_visible():
-                page.get_by_role("button", name="Tamam").click()
-            page.wait_for_timeout(1000)
-            if page.locator("text=4.5G uyumlu değildir").is_visible() or page.locator("text=2G veya 3G").is_visible():
-                if page.get_by_role("button", name="Tamam").is_visible():
-                    page.get_by_role("button", name="Tamam").click()
-                page.wait_for_timeout(500)
+            # Faturasız hatlarda (Pre SIM'ler 3G uyumlu olduğundan) doğrudan 3N seçilir
+            if is_faturasiz or (WCDMA and not LTE):
                 cb_3n = page.get_by_role("checkbox", name=re.compile(r"3N hizmetlerinden", re.IGNORECASE))
                 if cb_3n.count() > 0:
                     cb_3n.first.scroll_into_view_if_needed()
@@ -969,25 +919,53 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
                     lbl = page.locator("text=3N hizmetlerinden").first
                     lbl.scroll_into_view_if_needed()
                     lbl.click()
+                page.wait_for_timeout(1000)
                 if page.get_by_role("button", name="Tamam").is_visible():
                     page.get_by_role("button", name="Tamam").click()
-        elif (GSM):
-            cb_2n = page.get_by_role("checkbox", name=re.compile(r"Sadece 2N", re.IGNORECASE))
-            if cb_2n.count() > 0:
-                cb_2n.first.scroll_into_view_if_needed()
-                cb_2n.first.check()
-            else:
-                lbl = page.locator("text=Sadece 2N").first
-                lbl.scroll_into_view_if_needed()
-                lbl.click()
-            if page.get_by_role("button", name="Tamam").is_visible():
-                page.get_by_role("button", name="Tamam").click()
-    else:
-        checkbox_5n = page.get_by_role("checkbox", name="5N hizmetlerinden yararlanmak istiyorum")
-        if not checkbox_5n.is_checked():
-            checkbox_5n.check()
-            if page.get_by_role("button", name="Tamam").is_visible():
-                page.get_by_role("button", name="Tamam").press("Enter")
+            elif (LTE):
+                cb_45n = page.get_by_role("checkbox", name=re.compile(r"4\.5N hizmetlerinden", re.IGNORECASE))
+                if cb_45n.count() > 0:
+                    cb_45n.first.scroll_into_view_if_needed()
+                    cb_45n.first.check()
+                else:
+                    lbl = page.locator("text=4.5N hizmetlerinden").first
+                    lbl.scroll_into_view_if_needed()
+                    lbl.click()
+                page.wait_for_timeout(1000)
+                if page.get_by_role("button", name="Tamam").is_visible():
+                    page.get_by_role("button", name="Tamam").click()
+                page.wait_for_timeout(1000)
+                if page.locator("text=4.5G uyumlu değildir").is_visible() or page.locator("text=2G veya 3G").is_visible():
+                    if page.get_by_role("button", name="Tamam").is_visible():
+                        page.get_by_role("button", name="Tamam").click()
+                    page.wait_for_timeout(500)
+                    cb_3n = page.get_by_role("checkbox", name=re.compile(r"3N hizmetlerinden", re.IGNORECASE))
+                    if cb_3n.count() > 0:
+                        cb_3n.first.scroll_into_view_if_needed()
+                        cb_3n.first.check()
+                    else:
+                        lbl = page.locator("text=3N hizmetlerinden").first
+                        lbl.scroll_into_view_if_needed()
+                        lbl.click()
+                    if page.get_by_role("button", name="Tamam").is_visible():
+                        page.get_by_role("button", name="Tamam").click()
+            elif (GSM):
+                cb_2n = page.get_by_role("checkbox", name=re.compile(r"Sadece 2N", re.IGNORECASE))
+                if cb_2n.count() > 0:
+                    cb_2n.first.scroll_into_view_if_needed()
+                    cb_2n.first.check()
+                else:
+                    lbl = page.locator("text=Sadece 2N").first
+                    lbl.scroll_into_view_if_needed()
+                    lbl.click()
+                if page.get_by_role("button", name="Tamam").is_visible():
+                    page.get_by_role("button", name="Tamam").click()
+        else:
+            checkbox_5n = cb_5n_check.first
+            if not checkbox_5n.is_checked():
+                checkbox_5n.check()
+                if page.get_by_role("button", name="Tamam").is_visible():
+                    page.get_by_role("button", name="Tamam").press("Enter")
 
     volte_cb = page.get_by_role("checkbox", name="HD+ Görüsme Teknolojisi (Volte) Hizmetleri")
     if VoLTE and not NR:
@@ -1246,9 +1224,21 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
 
     expect(page.get_by_role("button", name="Sözleşme Özeti Gönder")).to_be_visible(timeout=DEFAULT_TIMEOUT)
     report(85, "Sözleşme özeti gönderiliyor...")
-    wait_glasspane()
-    page.get_by_role("button", name="Sözleşme Özeti Gönder").click()
     sozlesme_frame = page.locator("iframe[title=\"İçerik\"]").content_frame
+    for _soz_try in range(4):
+        wait_glasspane()
+        click_any_visible_tamam()
+        try:
+            page.get_by_role("button", name="Sözleşme Özeti Gönder").click(force=True, timeout=5000)
+        except Exception:
+            pass
+        wait_glasspane()
+        try:
+            expect(sozlesme_frame.get_by_text("Gsm No", exact=True)).to_be_visible(timeout=8000)
+            break
+        except Exception:
+            pass
+
     expect(sozlesme_frame.get_by_text("Gsm No", exact=True)).to_be_visible(timeout=DEFAULT_TIMEOUT)
     gsm_select = sozlesme_frame.get_by_label("Gsm No", exact=True)
     gsm_select.focus()
@@ -1258,7 +1248,10 @@ def _execute_opera_flow(page, context, browser, TCKN, DT, ICCID, MSISDN, GSM, WC
     try:
         expect(gonder_btn).to_be_enabled(timeout=3000)
     except Exception:
-        gsm_select.select_option("0")
+        try:
+            gsm_select.select_option(index=1)
+        except Exception:
+            gsm_select.select_option("0")
         gsm_select.dispatch_event("change")
         gsm_select.press("Tab")
     expect(gonder_btn).to_be_enabled(timeout=DEFAULT_TIMEOUT)
