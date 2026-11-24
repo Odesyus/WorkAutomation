@@ -380,11 +380,12 @@ def fetch_merns():
         import subprocess
         import json
 
-        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        from core import config
+        root_dir = config.ROOT_DIR
         cmd = [
             sys.executable,
             "-c",
-            "import json, MernsDB; res = MernsDB.get_Merns(); print('__MERNS_JSON__:' + json.dumps(res, ensure_ascii=False))"
+            "import sys, json; sys.path.insert(0, '.'); from core import MernsDB; res = MernsDB.get_Merns(); print('__MERNS_JSON__:' + json.dumps(res, ensure_ascii=False))"
         ]
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
