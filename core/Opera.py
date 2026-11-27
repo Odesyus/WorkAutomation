@@ -18,9 +18,9 @@ import os
 _ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT_DIR not in sys.path:
     sys.path.insert(0, _ROOT_DIR)
-from core import MernsDB
+from core import db_service as MernsDB
 from core import ICCID as ICCID_Func
-from core import CMPDB as OTP
+from core import db_service as OTP
 from core import config
 
 DEFAULT_TIMEOUT = 150000  # 150 saniye (2.5 dk - yavaş Opera geçişleri için)

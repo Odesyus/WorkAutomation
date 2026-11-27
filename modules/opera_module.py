@@ -18,9 +18,42 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Görev takip sözlüğü
 tasks = {}
+MAX_COMPLETED_TASKS = 50
+MAX_SCREENSHOT_FILES = 30
 
 # Aynı anda tek Opera aktivasyonu çalışsın (aynı kullanıcı ile MTS'e paralel giriş sorun çıkarabilir)
 _opera_lock = threading.Lock()
+
+
+def _cleanup_old_tasks_and_screenshots():
+    """Tamamlanmış eski görevleri ve static/screenshots altındaki eski ekran görüntülerini temizler."""
+    try:
+        completed = [
+            tid for tid, t in list(tasks.items())
+            if t.get('status') in ('completed', 'failed', 'stopped')
+        ]
+        if len(completed) > MAX_COMPLETED_TASKS:
+            for tid in completed[:-MAX_COMPLETED_TASKS]:
+                tasks.pop(tid, None)
+    except Exception:
+        pass
+
+    try:
+        from core import config
+        shots_dir = os.path.join(config.BUNDLE_DIR, "static", "screenshots")
+        if os.path.isdir(shots_dir):
+            files = sorted(
+                [os.path.join(shots_dir, f) for f in os.listdir(shots_dir) if f.lower().endswith(".png")],
+                key=lambda p: os.path.getmtime(p)
+            )
+            if len(files) > MAX_SCREENSHOT_FILES:
+                for old_file in files[:-MAX_SCREENSHOT_FILES]:
+                    try:
+                        os.remove(old_file)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
 
 
 def _now():
@@ -50,6 +83,7 @@ def start_multi_activation(items, options=None):
     items: [{'iccid': '...', 'msisdn': '...', 'pos_pre': '...'}, ...]
     Her aktivasyon için MernsDB'den taze rastgele TCKN ve DT çekilir.
     """
+    _cleanup_old_tasks_and_screenshots()
     task_id = str(uuid.uuid4())
     opts = dict(options or {})
 
@@ -185,6 +219,7 @@ def _run_multi_activation(task_id, items, options=None):
 
 def start_activation(tckn, dt, iccid, options=None):
     """Opera MTS aktivasyonunu arka planda başlatır ve task_id döndürür."""
+    _cleanup_old_tasks_and_screenshots()
     task_id = str(uuid.uuid4())
     opts = dict(options or {})
     msisdn, resolved_pos_pre = _resolve_line_info(iccid)
@@ -385,7 +420,7 @@ def fetch_merns():
         cmd = [
             sys.executable,
             "-c",
-            "import sys, json; sys.path.insert(0, '.'); from core import MernsDB; res = MernsDB.get_Merns(); print('__MERNS_JSON__:' + json.dumps(res, ensure_ascii=False))"
+            "import sys, json; sys.path.insert(0, '.'); from core import db_service; res = db_service.get_Merns(); print('__MERNS_JSON__:' + json.dumps(res, ensure_ascii=False))"
         ]
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"

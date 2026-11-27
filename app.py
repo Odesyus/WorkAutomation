@@ -11,8 +11,8 @@ import webbrowser
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 
-from core import config
-from modules import opera_module, iccid_module, mdm_es_module, db_helper, auth_module, update_module
+from core import config, db_service
+from modules import opera_module, iccid_module, mdm_es_module, auth_module, update_module
 
 app = Flask(
     __name__,
@@ -468,7 +468,7 @@ def api_mdm_fetch_imsi():
     msisdn = str(body().get('msisdn', '')).strip()
     if not re.fullmatch(r'\d{10}', msisdn):
         return fail('MSISDN 10 haneli olmalı (ör. 5012634460).')
-    result = db_helper.get_imsi_by_msisdn(msisdn)
+    result = db_service.get_imsi_by_msisdn(msisdn)
     if result['success']:
         return ok({'imsi': result['imsi']})
     return fail(result['error'], 500)

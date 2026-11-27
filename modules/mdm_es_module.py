@@ -22,9 +22,24 @@ ES_PROFILE_DIR = os.path.join(config.DATA_DIR, 'es_browser_profile')
 
 # Görev takip sözlüğü
 tasks = {}
+MAX_COMPLETED_TASKS = 50
+
+
+def _cleanup_old_tasks():
+    try:
+        completed = [
+            tid for tid, t in list(tasks.items())
+            if t.get('status') in ('completed', 'failed', 'stopped')
+        ]
+        if len(completed) > MAX_COMPLETED_TASKS:
+            for tid in completed[:-MAX_COMPLETED_TASKS]:
+                tasks.pop(tid, None)
+    except Exception:
+        pass
 
 
 def register_device(imei, imsi, msisdn, target='both', manufacturer=None, model=None):
+    _cleanup_old_tasks()
     """
     MDM ve/veya ES sisteminde cihaz kaydını arka plan iş parçacığında başlatır.
 

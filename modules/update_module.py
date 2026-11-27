@@ -21,6 +21,48 @@ if _BASE_DIR not in sys.path:
 from core import config
 
 ROOT_DIR = config.ROOT_DIR
+_COMMIT_FILE = os.path.join(config.CONFIG_DIR, ".version_commit")
+
+
+def _has_git():
+    """Sistemde git.exe'nin çalışıp çalışmadığını döndürür."""
+    res = _run_git_command(["--version"], timeout=5)
+    return bool(res.get('success'))
+
+
+def _read_saved_commit():
+    try:
+        if os.path.exists(_COMMIT_FILE):
+            with open(_COMMIT_FILE, "r", encoding="utf-8") as f:
+                return f.read().strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _write_saved_commit(sha):
+    try:
+        with open(_COMMIT_FILE, "w", encoding="utf-8") as f:
+            f.write(str(sha or "").strip())
+    except Exception:
+        pass
+
+
+def _get_latest_main_commit():
+    """Git kurulu olmayan taşınabilir kurulumlar için GitHub API'den son main commit bilgisini çeker."""
+    url = f"https://api.github.com/repos/{config.GITHUB_REPO}/commits/main"
+    resp = requests.get(
+        url,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "TelekomOtomasyon"},
+        timeout=15
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    sha = str(data.get("sha", ""))
+    commit_info = data.get("commit", {})
+    msg = str(commit_info.get("message", "")).splitlines()[0] if commit_info.get("message") else "Yeni güncelleme"
+    date_str = str(commit_info.get("committer", {}).get("date", ""))[:10]
+    return {"sha": sha, "short": sha[:7], "title": msg, "date": date_str}
 
 
 def _parse_version(tag):
@@ -110,17 +152,21 @@ def get_current_version_info():
     """Mevcut commit ve sürüm özetini döndürür."""
     if config.IS_FROZEN:
         return f"v{config.APP_VERSION} (EXE)"
-    _ensure_git_repo()
-    res = _run_git_command(["log", "-1", "--format=%h - %s (%cd)", "--date=short"], timeout=5)
-    if res['success'] and res['stdout']:
-        return res['stdout']
+    if _has_git():
+        _ensure_git_repo()
+        res = _run_git_command(["log", "-1", "--format=%h - %s (%cd)", "--date=short"], timeout=5)
+        if res['success'] and res['stdout']:
+            return res['stdout']
+    saved = _read_saved_commit()
+    if saved:
+        return f"{saved[:7]} (Taşınabilir)"
     return f"v{config.APP_VERSION}"
 
 
 def check_for_updates():
     """
-    EXE modunda GitHub Releases API'den, kaynak kod modunda 'origin main' dalından
-    yeni güncelleme olup olmadığını denetler.
+    EXE modunda GitHub Releases API'den, Git olmayan taşınabilir modda GitHub Commits API'den,
+    Git kurulu kaynak kod modunda 'origin main' dalından yeni güncelleme olup olmadığını denetler.
     """
     if config.IS_FROZEN:
         try:
@@ -152,6 +198,37 @@ def check_for_updates():
             return {
                 'has_update': False,
                 'error': f'Sürüm denetlenirken hata oluştu: {e}',
+                'current_version': get_current_version_info()
+            }
+
+    if not _has_git():
+        try:
+            remote = _get_latest_main_commit()
+            local_sha = _read_saved_commit()
+            if local_sha and local_sha.startswith(remote['short']):
+                return {
+                    'has_update': False,
+                    'message': 'Uygulamanız en güncel sürümde.',
+                    'current_version': get_current_version_info(),
+                    'local_hash': remote['short']
+                }
+            return {
+                'has_update': True,
+                'commits_behind': 1,
+                'commits': [{
+                    'hash': remote['short'],
+                    'title': remote['title'],
+                    'date': remote['date']
+                }],
+                'current_version': get_current_version_info(),
+                'local_hash': local_sha[:7] if local_sha else '-',
+                'remote_hash': remote['short'],
+                'message': f"Yeni güncelleme mevcut ({remote['short']})."
+            }
+        except Exception as e:
+            return {
+                'has_update': False,
+                'error': f'GitHub üzerinden sürüm denetlenemedi: {e}',
                 'current_version': get_current_version_info()
             }
 
@@ -271,6 +348,53 @@ del "%~f0"
             }
         except Exception as e:
             return {'success': False, 'error': f'EXE güncelleme hatası: {e}'}
+
+    if not _has_git():
+        try:
+            remote = _get_latest_main_commit()
+            zip_url = f"https://github.com/{config.GITHUB_REPO}/archive/refs/heads/main.zip"
+            tmp_dir = tempfile.mkdtemp(prefix="telekom_main_upd_")
+            zip_path = os.path.join(tmp_dir, "main.zip")
+            extract_dir = os.path.join(tmp_dir, "extracted")
+
+            with requests.get(zip_url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(zip_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 128):
+                        if chunk:
+                            f.write(chunk)
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(extract_dir)
+
+            entries = os.listdir(extract_dir)
+            src_dir = os.path.join(extract_dir, entries[0]) if entries else extract_dir
+
+            # Kullanıcının yerel config, data, drivers ve runtime klasörlerine dokunmadan kaynak dosyaları kopyala
+            protected = {"config", "data", "drivers", "runtime", "venv", ".git"}
+            for item in os.listdir(src_dir):
+                if item in protected:
+                    continue
+                s_path = os.path.join(src_dir, item)
+                d_path = os.path.join(ROOT_DIR, item)
+                if os.path.isdir(s_path):
+                    shutil.copytree(s_path, d_path, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(s_path, d_path)
+
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            _write_saved_commit(remote['sha'])
+
+            app_path = os.path.join(ROOT_DIR, "app.py")
+            threading.Timer(1.0, lambda: os.utime(app_path, None) if os.path.exists(app_path) else None).start()
+            return {
+                'success': True,
+                'message': 'Uygulama GitHub üzerinden başarıyla güncellendi.',
+                'details': [f"Son sürüm ({remote['short']}): {remote['title']}"],
+                'new_version': get_current_version_info()
+            }
+        except Exception as e:
+            return {'success': False, 'error': f'Güncelleme indirilirken hata oluştu: {e}'}
 
     logs = []
 
